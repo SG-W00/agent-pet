@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Agent Pet</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="mode-pet state-idle">
+    <main id="pet-view" aria-live="polite">
+        <section id="speech-bubble">
+            <strong id="status-title">空闲中</strong>
+            <span id="status-message">等你派任务给我</span>
+        </section>
+
+        <section id="pet-stage">
+            <div id="effect-layer">
+                <span class="effect effect-one">✦</span>
+                <span class="effect effect-two">✦</span>
+                <span class="effect effect-three">✓</span>
+            </div>
+            <img id="mascot" src="../../assets/mascot.png" alt="Agent Pet 机器人水獭">
+            <div id="working-dots"><i></i><i></i><i></i></div>
+            <div id="state-badge">Z</div>
+        </section>
+
+        <footer id="session-summary">
+            <span id="provider-label">Agent Pet</span>
+            <span id="session-count">0 个会话</span>
+        </footer>
+    </main>
+
+    <main id="traffic-view" aria-label="Agent 状态灯">
+        <div class="traffic-shell">
+            <div class="traffic-lamp lamp-red"></div>
+            <div class="traffic-lamp lamp-yellow"></div>
+            <div class="traffic-lamp lamp-green"></div>
+        </div>
+        <span id="traffic-label">空闲</span>
+    </main>
+
+    <button id="hide-button" title="隐藏">×</button>
+    <script src="renderer.js"></script>
+</body>
+</html>

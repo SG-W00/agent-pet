@@ -1,0 +1,39 @@
+{
+  "name": "agent-pet",
+  "version": "0.1.0",
+  "description": "A Windows desktop pet that reflects Codex and Claude Code activity from Windows and WSL.",
+  "main": "src/main.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "test": "node --test tests/*.test.js",
+    "install-hooks": "node scripts/install-hooks.js",
+    "uninstall-hooks": "node scripts/uninstall-hooks.js",
+    "simulate": "node scripts/simulate.js",
+    "dist": "electron-builder --win portable"
+  },
+  "devDependencies": {
+    "electron": "^37.2.4",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "io.agentpet.desktop",
+    "productName": "Agent Pet",
+    "asar": true,
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "bridge/**/*",
+      "scripts/**/*",
+      "package.json"
+    ],
+    "win": {
+      "icon": "assets/icon.ico",
+      "target": [
+        "portable"
+      ],
+      "artifactName": "AgentPet-${version}-portable.${ext}"
+    }
+  }
+}
