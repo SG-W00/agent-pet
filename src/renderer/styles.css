@@ -860,3 +860,87 @@ body.is-position-adjusting #speech-bubble {
     filter: blur(2px);
     pointer-events: none;
 }
+/* Custom animation modes */
+#mascot {
+    pointer-events: auto;
+    -webkit-app-region: no-drag;
+}
+
+body.animation-style-still #mascot {
+    animation: none;
+}
+
+body.animation-style-playful.state-idle #mascot {
+    animation: playful-bounce 1.05s cubic-bezier(0.35, 0.1, 0.25, 1) infinite;
+}
+
+body.animation-style-playful.state-running #mascot {
+    animation: playful-work 0.36s ease-in-out infinite alternate;
+}
+
+body.animation-style-gentle.state-idle #mascot,
+body.animation-style-gentle.state-running #mascot {
+    animation: gentle-float 3.8s ease-in-out infinite;
+}
+
+body.hover-action-hop #mascot {
+    animation: hover-hop 0.82s cubic-bezier(0.2, 0.85, 0.25, 1);
+}
+
+body.hover-action-wave #mascot {
+    animation: hover-wave 0.72s ease-in-out;
+}
+
+body.hover-action-spin #mascot {
+    animation: hover-spin 0.78s cubic-bezier(0.35, 0.05, 0.2, 1);
+}
+
+body.hover-action-squash #mascot {
+    animation: hover-squash 0.75s ease-in-out;
+}
+
+@keyframes playful-bounce {
+    0%, 100% { transform: translateY(0) rotate(-1deg) scale(1); }
+    45% { transform: translateY(-9px) rotate(1deg) scale(0.98, 1.03); }
+    65% { transform: translateY(1px) scale(1.04, 0.96); }
+}
+
+@keyframes playful-work {
+    from { transform: translateX(-3px) translateY(1px) rotate(-3deg); }
+    to { transform: translateX(3px) translateY(-6px) rotate(3deg); }
+}
+
+@keyframes gentle-float {
+    0%, 100% { transform: translateY(2px) rotate(-0.7deg) scale(1); }
+    50% { transform: translateY(-5px) rotate(0.7deg) scale(1.012); }
+}
+
+@keyframes hover-hop {
+    0%, 100% { transform: translateY(0) scale(1); }
+    30% { transform: translateY(-34px) rotate(-5deg) scale(0.96, 1.06); }
+    58% { transform: translateY(0) rotate(4deg) scale(1.09, 0.9); }
+    76% { transform: translateY(-10px) rotate(0deg) scale(0.99, 1.02); }
+}
+
+@keyframes hover-wave {
+    0%, 100% { transform: rotate(0deg) translateY(0); }
+    20% { transform: rotate(-8deg) translateY(-5px); }
+    40% { transform: rotate(9deg) translateY(-8px); }
+    60% { transform: rotate(-7deg) translateY(-5px); }
+    80% { transform: rotate(6deg) translateY(-2px); }
+}
+
+@keyframes hover-spin {
+    0% { transform: rotate(0deg) scale(1); }
+    45% { transform: rotate(190deg) scale(0.82); }
+    75% { transform: rotate(345deg) scale(1.08); }
+    100% { transform: rotate(360deg) scale(1); }
+}
+
+@keyframes hover-squash {
+    0%, 100% { transform: scale(1); }
+    20% { transform: translateY(12px) scale(1.15, 0.78); }
+    42% { transform: translateY(-22px) scale(0.84, 1.18); }
+    64% { transform: translateY(3px) scale(1.08, 0.9); }
+    82% { transform: translateY(-5px) scale(0.96, 1.06); }
+}

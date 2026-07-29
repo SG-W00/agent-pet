@@ -23,6 +23,7 @@ const resourceCpu = document.getElementById("resource-cpu");
 const resourceGpu = document.getElementById("resource-gpu");
 const resourceMemory = document.getElementById("resource-memory");
 const resourceNetwork = document.getElementById("resource-network");
+const mascot = document.getElementById("mascot");
 const sessionDetailsPanel = document.getElementById("session-details-panel");
 const sessionDetailsList = document.getElementById("session-details-list");
 const sessionDetailsSubtitle = document.getElementById("session-details-subtitle");
@@ -35,6 +36,10 @@ let latestResources = null;
 let windowSettings = { resources: { enabled: true, cpu: true, gpu: true, memory: true, network: true } };
 let positionAdjusting = false;
 let sessionDetailsOpen = false;
+let animationSettings = { style: "classic", hoverEnabled: true, mascotUrl: null, hoverFrameUrls: [], hoverFrameMs: 110 };
+let hoverTimer = null;
+const defaultMascotUrl = mascot.src;
+const HOVER_ACTIONS = ["hop", "wave", "spin", "squash"];
 
 function applyState(snapshot)
 {
@@ -163,6 +168,88 @@ function applyApproval(request)
     approvalSummary.textContent = approvalRequest.summary || "请核对操作内容后选择。";
 }
 
+function cancelHoverAnimation()
+{
+    if (hoverTimer)
+    {
+        clearTimeout(hoverTimer);
+        clearInterval(hoverTimer);
+        hoverTimer = null;
+    }
+    for (const action of HOVER_ACTIONS)
+    {
+        document.body.classList.remove(`hover-action-${action}`);
+    }
+    mascot.src = animationSettings.mascotUrl || defaultMascotUrl;
+}
+
+function playBuiltInHoverAnimation()
+{
+    const action = HOVER_ACTIONS[Math.floor(Math.random() * HOVER_ACTIONS.length)];
+    document.body.classList.add(`hover-action-${action}`);
+    hoverTimer = setTimeout(() => {
+        document.body.classList.remove(`hover-action-${action}`);
+        hoverTimer = null;
+    }, 900);
+}
+
+function playCustomHoverFrames()
+{
+    const frames = animationSettings.hoverFrameUrls;
+    let index = 0;
+    mascot.src = frames[index];
+    if (1 === frames.length)
+    {
+        hoverTimer = setTimeout(cancelHoverAnimation, 650);
+        return;
+    }
+
+    hoverTimer = setInterval(() => {
+        index++;
+        if (frames.length <= index)
+        {
+            cancelHoverAnimation();
+            return;
+        }
+        mascot.src = frames[index];
+    }, animationSettings.hoverFrameMs);
+}
+
+function playRandomHoverAnimation()
+{
+    if (
+        !animationSettings.hoverEnabled ||
+        hoverTimer ||
+        document.body.classList.contains("has-approval") ||
+        document.body.classList.contains("has-session-details")
+    )
+    {
+        return;
+    }
+
+    if (0 < animationSettings.hoverFrameUrls.length && 0.65 > Math.random())
+    {
+        playCustomHoverFrames();
+    }
+    else
+    {
+        playBuiltInHoverAnimation();
+    }
+}
+
+function applyAnimationSettings(settings)
+{
+    cancelHoverAnimation();
+    animationSettings = {
+        ...animationSettings,
+        ...(settings.animation || {})
+    };
+    for (const style of ["classic", "playful", "gentle", "still"])
+    {
+        document.body.classList.toggle(`animation-style-${style}`, style === animationSettings.style);
+    }
+    mascot.src = animationSettings.mascotUrl || defaultMascotUrl;
+}
 function formatRate(bytesPerSecond)
 {
     const value = Math.max(0, Number(bytesPerSecond) || 0);
@@ -228,6 +315,7 @@ window.agentPet.onDisplayMode((mode) => {
 window.agentPet.onWindowSettings((settings) => {
     document.body.classList.toggle("is-click-through", true === settings.clickThrough);
     applyResourceSettings(settings);
+    applyAnimationSettings(settings);
 });
 window.agentPet.onResourceUsage(applyResourceUsage);
 window.agentPet.onShowSessionDetails((open) => setSessionDetails(open, false));
@@ -237,6 +325,7 @@ window.agentPet.onPositionAdjustMode((active) => {
     applyState(latestSnapshot);
 });
 
+mascot.addEventListener("mouseenter", playRandomHoverAnimation);
 sessionSummary.addEventListener("click", () => setSessionDetails(!sessionDetailsOpen));
 sessionSummary.addEventListener("keydown", (event) => {
     if (["Enter", " "].includes(event.key))

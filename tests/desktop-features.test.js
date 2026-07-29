@@ -10,6 +10,7 @@ const { ApprovalStore } = require("../src/approval-store");
 const { normalizeSettings } = require("../src/settings-store");
 const { windowsPathToWsl } = require("../src/ai-setup");
 const { cpuPercent } = require("../src/resource-monitor");
+const { importImageFiles, validateImageFile } = require("../src/custom-assets");
 
 test("keyboard activity emits only active and idle transitions", () => {
     const events = [];
@@ -43,6 +44,13 @@ test("settings accept only supported size and opacity presets", () => {
         opacity: 0.75,
         scale: 1.25,
         position: null,
+        animation: {
+            style: "classic",
+            hoverEnabled: true,
+            mascotPath: null,
+            hoverFrames: [],
+            hoverFrameMs: 110
+        },
         resources: {
             enabled: true,
             cpu: true,
@@ -97,4 +105,42 @@ test("resource visibility settings merge without resetting other metrics", () =>
 test("desktop position accepts finite coordinates and rejects invalid values", () => {
     assert.deepEqual(normalizeSettings({ position: { x: 120.4, y: -20.6 } }).position, { x: 120, y: -21 });
     assert.equal(normalizeSettings({ position: { x: "left", y: 2 } }).position, null);
+});
+test("animation settings support styles, custom images and bounded frame speed", () => {
+    const settings = normalizeSettings({
+        animation: {
+            style: "playful",
+            hoverEnabled: false,
+            mascotPath: "C:\\pet.png",
+            hoverFrames: ["C:\\frame-1.png", "C:\\frame-2.png"],
+            hoverFrameMs: 70
+        }
+    });
+    assert.equal(settings.animation.style, "playful");
+    assert.equal(settings.animation.hoverEnabled, false);
+    assert.equal(settings.animation.hoverFrames.length, 2);
+    assert.equal(settings.animation.hoverFrameMs, 70);
+    assert.equal(normalizeSettings({ animation: { style: "unknown", hoverFrameMs: 1 } }).animation.style, "classic");
+});
+
+test("custom animation assets are copied locally in natural filename order", () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "agent-pet-assets-"));
+    try
+    {
+        const source = path.join(directory, "source");
+        const target = path.join(directory, "target");
+        fs.mkdirSync(source);
+        const frame10 = path.join(source, "frame-10.png");
+        const frame2 = path.join(source, "frame-2.png");
+        fs.writeFileSync(frame10, "png-10");
+        fs.writeFileSync(frame2, "png-2");
+        const imported = importImageFiles([frame10, frame2], target, "hover");
+        assert.equal(imported.length, 2);
+        assert.equal(fs.readFileSync(imported[0], "utf8"), "png-2");
+        assert.throws(() => validateImageFile(path.join(source, "frame.svg")));
+    }
+    finally
+    {
+        fs.rmSync(directory, { recursive: true, force: true });
+    }
 });

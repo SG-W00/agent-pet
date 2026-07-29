@@ -3,6 +3,15 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
+const ANIMATION_STYLES = Object.freeze(["classic", "playful", "gentle", "still"]);
+const DEFAULT_ANIMATION = Object.freeze({
+    style: "classic",
+    hoverEnabled: true,
+    mascotPath: null,
+    hoverFrames: [],
+    hoverFrameMs: 110
+});
+
 const DEFAULT_RESOURCES = Object.freeze({
     enabled: true,
     cpu: true,
@@ -18,6 +27,7 @@ const DEFAULT_SETTINGS = Object.freeze({
     opacity: 1,
     scale: 1,
     position: null,
+    animation: DEFAULT_ANIMATION,
     resources: DEFAULT_RESOURCES
 });
 
@@ -29,6 +39,23 @@ function normalizeResources(value = {})
         gpu: false !== value.gpu,
         memory: false !== value.memory,
         network: false !== value.network
+    };
+}
+
+function normalizeAnimation(value = {})
+{
+    const style = ANIMATION_STYLES.includes(value.style) ? value.style : DEFAULT_ANIMATION.style;
+    const frameMs = Number(value.hoverFrameMs);
+    const hoverFrames = Array.isArray(value.hoverFrames)
+        ? value.hoverFrames.filter((item) => "string" === typeof item && 0 < item.length).slice(0, 48)
+        : [];
+
+    return {
+        style,
+        hoverEnabled: false !== value.hoverEnabled,
+        mascotPath: "string" === typeof value.mascotPath && 0 < value.mascotPath.length ? value.mascotPath : null,
+        hoverFrames,
+        hoverFrameMs: Number.isFinite(frameMs) && 60 <= frameMs && 500 >= frameMs ? Math.round(frameMs) : DEFAULT_ANIMATION.hoverFrameMs
     };
 }
 
@@ -53,6 +80,7 @@ function normalizeSettings(value = {})
         opacity,
         scale,
         position: normalizePosition(value.position),
+        animation: normalizeAnimation(value.animation),
         resources: normalizeResources(value.resources)
     };
 }
@@ -84,7 +112,10 @@ class SettingsStore
         const resources = changes.resources
             ? { ...this.value.resources, ...changes.resources }
             : this.value.resources;
-        this.value = normalizeSettings({ ...this.value, ...changes, resources });
+        const animation = changes.animation
+            ? { ...this.value.animation, ...changes.animation }
+            : this.value.animation;
+        this.value = normalizeSettings({ ...this.value, ...changes, animation, resources });
         fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
         fs.writeFileSync(this.filePath, `${JSON.stringify(this.value, null, 2)}\n`, "utf8");
         return this.value;
@@ -92,9 +123,12 @@ class SettingsStore
 }
 
 module.exports = {
+    ANIMATION_STYLES,
+    DEFAULT_ANIMATION,
     DEFAULT_RESOURCES,
     DEFAULT_SETTINGS,
     SettingsStore,
+    normalizeAnimation,
     normalizePosition,
     normalizeResources,
     normalizeSettings

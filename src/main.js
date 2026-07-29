@@ -2,6 +2,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const { pathToFileURL } = require("node:url");
 const {
     app,
     BrowserWindow,
@@ -17,6 +18,7 @@ const {
 const { installLocalAi } = require("./ai-setup");
 const { ApprovalStore } = require("./approval-store");
 const { KeyboardActivityMonitor } = require("./keyboard-activity");
+const { importImageFiles } = require("./custom-assets");
 const { ResourceMonitor } = require("./resource-monitor");
 const { SettingsStore } = require("./settings-store");
 const { StateStore } = require("./state-store");
@@ -70,6 +72,27 @@ function approvalDirectory()
     return path.join(localAppDataDirectory(), "AgentPet", "approvals");
 }
 
+function customAssetDirectory()
+{
+    return path.join(app.getPath("userData"), "custom-assets");
+}
+
+function imageFileUrl(filePath)
+{
+    return filePath && fs.existsSync(filePath) ? pathToFileURL(filePath).href : null;
+}
+
+function publicWindowSettings()
+{
+    return {
+        ...settings,
+        animation: {
+            ...settings.animation,
+            mascotUrl: imageFileUrl(settings.animation.mascotPath),
+            hoverFrameUrls: settings.animation.hoverFrames.map(imageFileUrl).filter(Boolean)
+        }
+    };
+}
 function loginExecutable()
 {
     return process.env.PORTABLE_EXECUTABLE_FILE || process.execPath;
@@ -180,7 +203,7 @@ function applyWindowSettings()
     mainWindow.setOpacity(settings.opacity);
     applyInteractionMode();
     mainWindow.webContents.send("display-mode", settings.displayMode);
-    mainWindow.webContents.send("window-settings", settings);
+    mainWindow.webContents.send("window-settings", publicWindowSettings());
     placeWindow();
 }
 
@@ -338,6 +361,49 @@ function runOneClickSetup()
     });
 }
 
+async function chooseMascotImage()
+{
+    const result = await dialog.showOpenDialog(mainWindow, {
+        title: "选择桌宠主图",
+        properties: ["openFile"],
+        filters: [{ name: "图片", extensions: ["png", "jpg", "jpeg", "webp", "gif"] }]
+    });
+    if (result.canceled)
+    {
+        return;
+    }
+    try
+    {
+        const [mascotPath] = importImageFiles(result.filePaths, customAssetDirectory(), "mascot");
+        updateSettings({ animation: { mascotPath } });
+    }
+    catch (error)
+    {
+        dialog.showErrorBox("无法导入桌宠图片", error.message);
+    }
+}
+
+async function chooseHoverFrames()
+{
+    const result = await dialog.showOpenDialog(mainWindow, {
+        title: "选择悬停动画帧（按文件名排序）",
+        properties: ["openFile", "multiSelections"],
+        filters: [{ name: "图片", extensions: ["png", "jpg", "jpeg", "webp", "gif"] }]
+    });
+    if (result.canceled)
+    {
+        return;
+    }
+    try
+    {
+        const hoverFrames = importImageFiles(result.filePaths, customAssetDirectory(), "hover");
+        updateSettings({ animation: { hoverFrames, hoverEnabled: true } });
+    }
+    catch (error)
+    {
+        dialog.showErrorBox("无法导入悬停动画帧", error.message);
+    }
+}
 function rebuildTrayMenu()
 {
     if (!tray || !settings)
@@ -413,7 +479,55 @@ function rebuildTrayMenu()
                 placeWindow(true);
                 rebuildTrayMenu();
             }
-        },        {
+        },
+        {
+            label: "外观与动画",
+            submenu: [
+                {
+                    label: "动画风格",
+                    submenu: [
+                        ["classic", "经典"],
+                        ["playful", "活泼"],
+                        ["gentle", "轻柔"],
+                        ["still", "静止"]
+                    ].map(([value, label]) => ({
+                        label,
+                        type: "radio",
+                        checked: value === settings.animation.style,
+                        click: () => updateSettings({ animation: { style: value } })
+                    }))
+                },
+                {
+                    label: "鼠标悬停随机动画",
+                    type: "checkbox",
+                    checked: settings.animation.hoverEnabled,
+                    click: (item) => updateSettings({ animation: { hoverEnabled: item.checked } })
+                },
+                {
+                    label: "悬停帧速度",
+                    submenu: [[70, "快速"], [110, "标准"], [180, "慢速"]].map(([value, label]) => ({
+                        label,
+                        type: "radio",
+                        checked: value === settings.animation.hoverFrameMs,
+                        click: () => updateSettings({ animation: { hoverFrameMs: value } })
+                    }))
+                },
+                { type: "separator" },
+                { label: "更换桌宠主图…", click: chooseMascotImage },
+                { label: "导入悬停动画帧…", click: chooseHoverFrames },
+                {
+                    label: "恢复默认主图",
+                    enabled: Boolean(settings.animation.mascotPath),
+                    click: () => updateSettings({ animation: { mascotPath: null } })
+                },
+                {
+                    label: "清除悬停动画帧",
+                    enabled: 0 < settings.animation.hoverFrames.length,
+                    click: () => updateSettings({ animation: { hoverFrames: [] } })
+                }
+            ]
+        },
+        {
             label: "电脑资源显示",
             submenu: [
                 {
@@ -460,7 +574,8 @@ function rebuildTrayMenu()
             label: sessionDetailsOpen ? "关闭会话详情" : `查看 ${latestSnapshot.sessions.length} 个会话详情  Ctrl+Shift+Alt+S`,
             enabled: 0 < latestSnapshot.sessions.length,
             click: () => setSessionDetailsOpen(!sessionDetailsOpen)
-        },        {
+        },
+        {
             label: latestApproval ? "允许当前授权  Ctrl+Shift+Enter" : "当前没有待授权操作",
             enabled: Boolean(latestApproval),
             click: () => decideApproval("allow")

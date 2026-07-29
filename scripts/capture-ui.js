@@ -38,7 +38,8 @@ app.whenReady().then(async () => {
     });
     window.webContents.send("window-settings", {
         clickThrough: false,
-        resources: { enabled: true, cpu: true, gpu: true, memory: true, network: true }
+        resources: { enabled: true, cpu: true, gpu: true, memory: true, network: true },
+        animation: { style: "playful", hoverEnabled: true, mascotUrl: null, hoverFrameUrls: [], hoverFrameMs: 110 }
     });
     window.webContents.send("resource-usage", {
         cpu: 28,
@@ -47,7 +48,11 @@ app.whenReady().then(async () => {
         download: 1240000,
         upload: 86000
     });
-    if ("typing" === scenario)
+    if ("hover" === scenario)
+    {
+        await window.webContents.executeJavaScript("document.getElementById('mascot').dispatchEvent(new MouseEvent('mouseenter'))");
+    }
+    else    if ("typing" === scenario)
     {
         window.webContents.send("typing-activity", true);
     }
@@ -71,7 +76,7 @@ app.whenReady().then(async () => {
         });
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 900));
+    await new Promise((resolve) => setTimeout(resolve, "hover" === scenario ? 380 : 900));
     const image = await window.webContents.capturePage();
     const outputDirectory = path.join(__dirname, "..", "artifacts");
     fs.mkdirSync(outputDirectory, { recursive: true });
