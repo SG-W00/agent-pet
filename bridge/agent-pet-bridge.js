@@ -70,6 +70,112 @@ function resolveStateDirectory()
     return path.join(os.homedir(), ".local", "share", "AgentPet", "states");
 }
 
+function approvalDirectoryForStateDirectory(stateDirectory)
+{
+    return path.join(path.dirname(stateDirectory), "approvals");
+}
+
+function normalizedEventName(eventName)
+{
+    return String(eventName || "").toLowerCase().replaceAll(/[^a-z0-9]/g, "");
+}
+
+function permissionSummary(payload)
+{
+    const toolInput = payload.tool_input && "object" === typeof payload.tool_input ? payload.tool_input : {};
+    const description = toolInput.description || payload.message || "";
+    const command = toolInput.command || "";
+    const value = description && command && description !== command
+        ? `${description} · ${command}`
+        : (description || command || JSON.stringify(toolInput));
+
+    return String(value || "需要授权的操作").replaceAll(/\s+/g, " ").slice(0, 400);
+}
+
+function writeJsonAtomic(filePath, value)
+{
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    const temporaryPath = `${filePath}.${process.pid}.tmp`;
+    fs.writeFileSync(temporaryPath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+    fs.renameSync(temporaryPath, filePath);
+}
+
+function permissionDecisionOutput(decision)
+{
+    return {
+        hookSpecificOutput: {
+            hookEventName: "PermissionRequest",
+            decision: "allow" === decision
+                ? { behavior: "allow" }
+                : { behavior: "deny", message: "Denied from Agent Pet." }
+        }
+    };
+}
+
+function createApprovalRequest(provider, payload, session, stateDirectory, now = Date.now())
+{
+    const timeout = Math.max(5000, Math.min(170000, Number(process.env.AGENT_PET_APPROVAL_TIMEOUT_MS) || 150000));
+    const seed = `${provider}|${session.id}|${payload.tool_name || "tool"}|${JSON.stringify(payload.tool_input || {})}|${now}|${process.pid}`;
+    const id = crypto.createHash("sha256").update(seed).digest("hex").slice(0, 32);
+    const request = {
+        protocolVersion: 1,
+        id,
+        provider: session.provider,
+        source: session.source,
+        sessionId: session.id,
+        toolName: String(payload.tool_name || "Tool").slice(0, 100),
+        summary: permissionSummary(payload),
+        cwd: session.cwd,
+        createdAt: new Date(now).toISOString(),
+        expiresAt: new Date(now + timeout).toISOString()
+    };
+    const directory = approvalDirectoryForStateDirectory(stateDirectory);
+    writeJsonAtomic(path.join(directory, `${id}.request.json`), request);
+    return request;
+}
+
+function waitForApprovalDecision(request, stateDirectory)
+{
+    const directory = approvalDirectoryForStateDirectory(stateDirectory);
+    const requestPath = path.join(directory, `${request.id}.request.json`);
+    const decisionPath = path.join(directory, `${request.id}.decision.json`);
+    const deadline = Date.parse(request.expiresAt);
+
+    return new Promise((resolve) => {
+        const check = () => {
+            if (fs.existsSync(decisionPath))
+            {
+                try
+                {
+                    const value = JSON.parse(fs.readFileSync(decisionPath, "utf8"));
+                    if (["allow", "deny"].includes(value.decision))
+                    {
+                        fs.rmSync(decisionPath, { force: true });
+                        fs.rmSync(requestPath, { force: true });
+                        resolve(value.decision);
+                        return;
+                    }
+                }
+                catch (_error)
+                {
+                    // Ignore a partial or invalid decision and continue waiting.
+                }
+            }
+
+            if (Date.now() >= deadline)
+            {
+                fs.rmSync(requestPath, { force: true });
+                fs.rmSync(decisionPath, { force: true });
+                resolve(null);
+                return;
+            }
+
+            setTimeout(check, 100);
+        };
+
+        check();
+    });
+}
 function normalizeEvent(eventName, payload)
 {
     const event = String(eventName || payload.hook_event_name || payload.type || "")
@@ -133,13 +239,18 @@ function sessionIdentifier(provider, payload)
 
 function messageFor(state, payload)
 {
+    const submittedPrompt = payload.prompt || payload.user_prompt || payload.userPrompt;
+    if (submittedPrompt)
+    {
+        return `任务：${String(submittedPrompt).replaceAll(/\s+/g, " ").slice(0, 400)}`;
+    }
     if (payload.message)
     {
-        return String(payload.message).slice(0, 180);
+        return String(payload.message).slice(0, 500);
     }
     if (payload.last_assistant_message && "completed" === state)
     {
-        return String(payload.last_assistant_message).replaceAll(/\s+/g, " ").slice(0, 180);
+        return String(payload.last_assistant_message).replaceAll(/\s+/g, " ").slice(0, 600);
     }
 
     return {
@@ -216,9 +327,32 @@ async function main()
         }
     }
 
+    if ("permissionrequest" === normalizedEventName(eventName))
+    {
+        const request = createApprovalRequest(provider, payload, session, stateDirectory);
+        session.approvalId = request.id;
+        session.message = `等待授权：${request.toolName} · ${request.summary}`.slice(0, 500);
+        writeJsonAtomic(statePath, session);
+
+        const decision = await waitForApprovalDecision(request, stateDirectory);
+        if (decision)
+        {
+            writeJsonAtomic(statePath, {
+                ...session,
+                approvalId: undefined,
+                state: "running",
+                event: `PermissionRequest:${decision}`,
+                message: "allow" === decision ? "已从桌宠允许操作" : "已从桌宠拒绝操作",
+                updatedAt: new Date().toISOString()
+            });
+            process.stdout.write(`${JSON.stringify(permissionDecisionOutput(decision))}\n`);
+        }
+        return;
+    }
+
     if (!shouldPreserveFinalState(existingSession, state))
     {
-        fs.writeFileSync(statePath, `${JSON.stringify(session, null, 2)}\n`, "utf8");
+        writeJsonAtomic(statePath, session);
     }
 }
 
@@ -231,9 +365,15 @@ if (require.main === module)
 }
 
 module.exports = {
+    approvalDirectoryForStateDirectory,
+    createApprovalRequest,
+    messageFor,
     normalizeEvent,
+    permissionDecisionOutput,
+    permissionSummary,
     resolveStateDirectory,
     sessionIdentifier,
     shouldPreserveFinalState,
+    waitForApprovalDecision,
     windowsPathToWsl
 };

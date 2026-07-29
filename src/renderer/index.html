@@ -17,16 +17,33 @@
             <div id="effect-layer">
                 <span class="effect effect-one">✦</span>
                 <span class="effect effect-two">✦</span>
-                <span class="effect effect-three">✓</span>
+                <span class="effect effect-three">✦</span>
             </div>
-            <img id="mascot" src="../../assets/mascot.png" alt="Agent Pet 机器人水獭">
+            <img id="mascot" src="../../assets/mascot.png" alt="Agent Pet 机器人宠物">
+            <div id="typing-scene" aria-hidden="true">
+                <span class="typing-particle particle-one">✦</span>
+                <span class="typing-particle particle-two">⌁</span>
+                <span class="typing-particle particle-three">✦</span>
+                <span class="typing-paw paw-left"></span>
+                <span class="typing-paw paw-right"></span>
+                <div class="typing-keyboard">
+                    <i></i><i></i><i></i><i></i><i></i><i></i>
+                    <i></i><i></i><i></i><i></i><i></i><i></i>
+                </div>
+            </div>
             <div id="working-dots"><i></i><i></i><i></i></div>
             <div id="state-badge">Z</div>
         </section>
 
-        <footer id="session-summary">
+        <section id="resource-panel" aria-label="电脑资源">
+            <span class="resource-chip" data-resource="cpu"><b>CPU</b><em id="resource-cpu">--%</em></span>
+            <span class="resource-chip" data-resource="gpu"><b>GPU</b><em id="resource-gpu">--%</em></span>
+            <span class="resource-chip" data-resource="memory"><b>内存</b><em id="resource-memory">--%</em></span>
+            <span class="resource-chip resource-network" data-resource="network"><b>网速</b><em id="resource-network">↓ -- ↑ --</em></span>
+        </section>
+        <footer id="session-summary" role="button" tabindex="0" title="点击查看每个会话的进度">
             <span id="provider-label">Agent Pet</span>
-            <span id="session-count">0 个会话</span>
+            <span id="session-count">0 个会话 ›</span>
         </footer>
     </main>
 
@@ -38,6 +55,29 @@
         </div>
         <span id="traffic-label">空闲</span>
     </main>
+
+    <section id="session-details-panel" hidden aria-label="会话详情">
+        <header>
+            <div>
+                <strong>Agent 会话详情</strong>
+                <span id="session-details-subtitle">0 个会话</span>
+            </div>
+            <button id="session-details-close" type="button" title="关闭">×</button>
+        </header>
+        <div id="session-details-list"></div>
+        <small>点击右下角会话数或按 Ctrl+Shift+Alt+S 关闭</small>
+    </section>
+    <section id="approval-panel" hidden aria-live="assertive">
+        <span id="approval-provider">CODEX · 需要授权</span>
+        <strong id="approval-title">允许 Agent 执行此操作？</strong>
+        <code id="approval-tool">工具</code>
+        <p id="approval-summary">请核对操作内容后选择。</p>
+        <div class="approval-actions">
+            <button id="approval-allow" type="button">✓ 允许</button>
+            <button id="approval-deny" type="button">× 拒绝</button>
+        </div>
+        <small>Ctrl+Shift+Enter 允许 · Ctrl+Shift+Backspace 拒绝</small>
+    </section>
 
     <button id="hide-button" title="隐藏">×</button>
     <script src="renderer.js"></script>

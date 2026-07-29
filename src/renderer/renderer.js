@@ -1,36 +1,11 @@
 "use strict";
 
 const STATE_PRESENTATION = Object.freeze({
-    idle: {
-        title: "空闲中",
-        fallback: "等你派任务给我",
-        badge: "Z",
-        traffic: "空闲"
-    },
-    running: {
-        title: "努力工作中",
-        fallback: "正在处理任务…",
-        badge: "⚙",
-        traffic: "执行中"
-    },
-    completed: {
-        title: "任务完成啦",
-        fallback: "快来看看成果吧！",
-        badge: "✓",
-        traffic: "已完成"
-    },
-    needs_input: {
-        title: "需要你的决定",
-        fallback: "有一个问题等你处理",
-        badge: "?",
-        traffic: "待输入"
-    },
-    error: {
-        title: "遇到问题了",
-        fallback: "请回到终端查看错误",
-        badge: "!",
-        traffic: "异常"
-    }
+    idle: { title: "空闲中", fallback: "等你派任务给我", badge: "Z", traffic: "空闲" },
+    running: { title: "努力工作中", fallback: "正在处理任务…", badge: "⚙", traffic: "执行中" },
+    completed: { title: "任务完成啦", fallback: "快来看看成果吧！", badge: "✓", traffic: "已完成" },
+    needs_input: { title: "需要你的决定", fallback: "有一个问题等你处理", badge: "?", traffic: "待输入" },
+    error: { title: "遇到问题了", fallback: "请回到终端查看错误", badge: "!", traffic: "异常" }
 });
 
 const statusTitle = document.getElementById("status-title");
@@ -39,33 +14,237 @@ const stateBadge = document.getElementById("state-badge");
 const providerLabel = document.getElementById("provider-label");
 const sessionCount = document.getElementById("session-count");
 const trafficLabel = document.getElementById("traffic-label");
+const approvalPanel = document.getElementById("approval-panel");
+const approvalProvider = document.getElementById("approval-provider");
+const approvalTool = document.getElementById("approval-tool");
+const approvalSummary = document.getElementById("approval-summary");
+const resourcePanel = document.getElementById("resource-panel");
+const resourceCpu = document.getElementById("resource-cpu");
+const resourceGpu = document.getElementById("resource-gpu");
+const resourceMemory = document.getElementById("resource-memory");
+const resourceNetwork = document.getElementById("resource-network");
+const sessionDetailsPanel = document.getElementById("session-details-panel");
+const sessionDetailsList = document.getElementById("session-details-list");
+const sessionDetailsSubtitle = document.getElementById("session-details-subtitle");
+const sessionSummary = document.getElementById("session-summary");
+
+let latestSnapshot = { state: "idle", active: null, sessions: [] };
+let typingActive = false;
+let approvalRequest = null;
+let latestResources = null;
+let windowSettings = { resources: { enabled: true, cpu: true, gpu: true, memory: true, network: true } };
+let positionAdjusting = false;
+let sessionDetailsOpen = false;
 
 function applyState(snapshot)
 {
-    const state = Object.hasOwn(STATE_PRESENTATION, snapshot.state) ? snapshot.state : "idle";
+    latestSnapshot = snapshot || latestSnapshot;
+    const state = Object.hasOwn(STATE_PRESENTATION, latestSnapshot.state) ? latestSnapshot.state : "idle";
     const presentation = STATE_PRESENTATION[state];
-    const active = snapshot.active;
+    const active = latestSnapshot.active;
+    const canAnimateTyping = typingActive && ("idle" === state || "running" === state);
 
     for (const stateName of Object.keys(STATE_PRESENTATION))
     {
         document.body.classList.remove(`state-${stateName}`);
     }
     document.body.classList.add(`state-${state}`);
+    document.body.classList.toggle("is-typing", canAnimateTyping);
 
-    statusTitle.textContent = presentation.title;
-    statusMessage.textContent = active && active.message ? active.message : presentation.fallback;
-    stateBadge.textContent = presentation.badge;
+    statusTitle.textContent = positionAdjusting
+        ? "拖动到想要的位置"
+        : (canAnimateTyping ? "一起敲代码" : presentation.title);
+    statusMessage.textContent = positionAdjusting
+        ? "20 秒后自动恢复鼠标穿透"
+        : (active && active.message ? active.message : presentation.fallback);
+    stateBadge.textContent = canAnimateTyping ? "⌨" : presentation.badge;
     trafficLabel.textContent = presentation.traffic;
     providerLabel.textContent = active
         ? `${active.provider || "Agent"} · ${active.source || "local"}`
         : "Agent Pet";
-    sessionCount.textContent = `${snapshot.sessions.length} 个会话`;
+    sessionCount.textContent = `${Array.isArray(latestSnapshot.sessions) ? latestSnapshot.sessions.length : 0} 个会话 ›`;
+    if (sessionDetailsOpen)
+    {
+        renderSessionDetails();
+    }
+}
+
+function displayPath(cwd)
+{
+    const value = String(cwd || "未知目录");
+    const parts = value.split(/[\\/]/).filter(Boolean);
+    return parts.length ? parts[parts.length - 1] : value;
+}
+
+function formatUpdatedAt(value)
+{
+    const date = new Date(value || 0);
+    return Number.isNaN(date.getTime()) ? "时间未知" : date.toLocaleString("zh-CN", { hour12: false });
+}
+
+function renderSessionDetails()
+{
+    const sessions = Array.isArray(latestSnapshot.sessions) ? latestSnapshot.sessions : [];
+    sessionDetailsSubtitle.textContent = `${sessions.length} 个会话 · 按状态优先排列`;
+    sessionDetailsList.replaceChildren();
+
+    if (0 === sessions.length)
+    {
+        const empty = document.createElement("p");
+        empty.className = "session-empty";
+        empty.textContent = "当前还没有 Agent 会话。";
+        sessionDetailsList.appendChild(empty);
+        return;
+    }
+
+    for (const session of sessions)
+    {
+        const state = Object.hasOwn(STATE_PRESENTATION, session.state) ? session.state : "idle";
+        const card = document.createElement("article");
+        card.className = `session-card session-${state}`;
+
+        const header = document.createElement("header");
+        const identity = document.createElement("strong");
+        identity.textContent = `${session.provider || "Agent"} · ${displayPath(session.cwd)}`;
+        const stateLabel = document.createElement("span");
+        stateLabel.className = "session-state";
+        stateLabel.textContent = STATE_PRESENTATION[state].traffic;
+        header.append(identity, stateLabel);
+
+        const source = document.createElement("span");
+        source.className = "session-source";
+        source.textContent = `${session.source || "local"} · ${session.event || "状态更新"}`;
+
+        const message = document.createElement("p");
+        message.textContent = session.message || STATE_PRESENTATION[state].fallback;
+
+        const footer = document.createElement("footer");
+        const cwd = document.createElement("code");
+        cwd.textContent = session.cwd || "未知目录";
+        cwd.title = session.cwd || "";
+        const updated = document.createElement("time");
+        updated.dateTime = session.updatedAt || "";
+        updated.textContent = formatUpdatedAt(session.updatedAt);
+        footer.append(cwd, updated);
+
+        card.append(header, source, message, footer);
+        sessionDetailsList.appendChild(card);
+    }
+}
+
+function setSessionDetails(open, notify = true)
+{
+    sessionDetailsOpen = true === open;
+    sessionDetailsPanel.hidden = !sessionDetailsOpen;
+    document.body.classList.toggle("has-session-details", sessionDetailsOpen);
+    if (sessionDetailsOpen)
+    {
+        renderSessionDetails();
+    }
+    if (notify)
+    {
+        window.agentPet.setSessionDetailsOpen(sessionDetailsOpen);
+    }
+}
+function applyApproval(request)
+{
+    approvalRequest = request || null;
+    const hasApproval = null !== approvalRequest;
+
+    document.body.classList.toggle("has-approval", hasApproval);
+    approvalPanel.hidden = !hasApproval;
+    if (!hasApproval)
+    {
+        return;
+    }
+
+    approvalProvider.textContent = `${String(approvalRequest.provider || "Agent").toUpperCase()} · 需要授权`;
+    approvalTool.textContent = approvalRequest.toolName || "未知操作";
+    approvalSummary.textContent = approvalRequest.summary || "请核对操作内容后选择。";
+}
+
+function formatRate(bytesPerSecond)
+{
+    const value = Math.max(0, Number(bytesPerSecond) || 0);
+    if (1048576 <= value)
+    {
+        return `${(value / 1048576).toFixed(1)}M`;
+    }
+    if (1024 <= value)
+    {
+        return `${Math.round(value / 1024)}K`;
+    }
+    return `${Math.round(value)}B`;
+}
+
+function applyResourceSettings(settings)
+{
+    windowSettings = settings || windowSettings;
+    const resources = windowSettings.resources || {};
+    const enabledKeys = ["cpu", "gpu", "memory", "network"].filter((key) => false !== resources[key]);
+    resourcePanel.hidden = false === resources.enabled || 0 === enabledKeys.length;
+    for (const chip of resourcePanel.querySelectorAll("[data-resource]"))
+    {
+        chip.hidden = !enabledKeys.includes(chip.dataset.resource);
+    }
+    document.body.classList.toggle("has-resources", !resourcePanel.hidden);
+}
+
+function applyResourceUsage(snapshot)
+{
+    latestResources = snapshot || null;
+    if (!latestResources)
+    {
+        resourceCpu.textContent = "--%";
+        resourceGpu.textContent = "--%";
+        resourceMemory.textContent = "--%";
+        resourceNetwork.textContent = "↓ -- ↑ --";
+        return;
+    }
+
+    resourceCpu.textContent = `${latestResources.cpu ?? 0}%`;
+    resourceGpu.textContent = null === latestResources.gpu ? "N/A" : `${latestResources.gpu}%`;
+    resourceMemory.textContent = `${latestResources.memoryPercent ?? 0}%`;
+    resourceNetwork.textContent = `↓ ${formatRate(latestResources.download)} ↑ ${formatRate(latestResources.upload)}`;
+}
+function submitApproval(decision)
+{
+    if (approvalRequest)
+    {
+        window.agentPet.decideApproval(decision);
+    }
 }
 
 window.agentPet.onState(applyState);
+window.agentPet.onTypingActivity((active) => {
+    typingActive = true === active;
+    applyState(latestSnapshot);
+});
+window.agentPet.onApprovalRequest(applyApproval);
 window.agentPet.onDisplayMode((mode) => {
     document.body.classList.toggle("mode-pet", "pet" === mode);
     document.body.classList.toggle("mode-traffic", "traffic" === mode);
 });
+window.agentPet.onWindowSettings((settings) => {
+    document.body.classList.toggle("is-click-through", true === settings.clickThrough);
+    applyResourceSettings(settings);
+});
+window.agentPet.onResourceUsage(applyResourceUsage);
+window.agentPet.onShowSessionDetails((open) => setSessionDetails(open, false));
+window.agentPet.onPositionAdjustMode((active) => {
+    positionAdjusting = true === active;
+    document.body.classList.toggle("is-position-adjusting", positionAdjusting);
+    applyState(latestSnapshot);
+});
 
+sessionSummary.addEventListener("click", () => setSessionDetails(!sessionDetailsOpen));
+sessionSummary.addEventListener("keydown", (event) => {
+    if (["Enter", " "].includes(event.key))
+    {
+        event.preventDefault();
+        setSessionDetails(!sessionDetailsOpen);
+    }
+});
+document.getElementById("session-details-close").addEventListener("click", () => setSessionDetails(false));document.getElementById("approval-allow").addEventListener("click", () => submitApproval("allow"));
+document.getElementById("approval-deny").addEventListener("click", () => submitApproval("deny"));
 document.getElementById("hide-button").addEventListener("click", () => window.agentPet.hide());

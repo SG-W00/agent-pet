@@ -67,12 +67,15 @@ function addManagedHandlers(config, events, provider, bridgePath)
     for (const eventName of events)
     {
         config.hooks[eventName] = config.hooks[eventName] || [];
+        const timeout = "PermissionRequest" === eventName
+            ? 180
+            : ("codex" === provider && "SessionEnd" === eventName ? 3 : 10);
         config.hooks[eventName].push({
             matcher: "",
             hooks: [{
                 type: "command",
                 command: commandFor(bridgePath, provider, eventName),
-                timeout: 10
+                timeout
             }]
         });
     }

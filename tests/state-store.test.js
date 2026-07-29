@@ -3,7 +3,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { effectiveState, selectAggregate } = require("../src/state-store");
-const { normalizeEvent, shouldPreserveFinalState, windowsPathToWsl } = require("../bridge/agent-pet-bridge");
+const { messageFor, normalizeEvent, shouldPreserveFinalState, windowsPathToWsl } = require("../bridge/agent-pet-bridge");
 
 test("aggregate chooses the highest-priority active state", () => {
     const now = Date.now();
@@ -62,4 +62,9 @@ test("converts a Windows local app data path to WSL", () => {
         windowsPathToWsl("C:\\Users\\woan\\AppData\\Local"),
         "/mnt/c/Users/woan/AppData/Local"
     );
+});
+
+test("submitted prompts become concise session progress summaries", () => {
+    assert.equal(messageFor("running", { prompt: "检查   当前工程的构建错误" }), "任务：检查 当前工程的构建错误");
+    assert.ok(messageFor("running", { prompt: "x".repeat(400) }).length <= 403);
 });

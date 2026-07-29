@@ -1,0 +1,101 @@
+"use strict";
+
+const fs = require("node:fs");
+const path = require("node:path");
+
+const DEFAULT_RESOURCES = Object.freeze({
+    enabled: true,
+    cpu: true,
+    gpu: true,
+    memory: true,
+    network: true
+});
+
+const DEFAULT_SETTINGS = Object.freeze({
+    clickThrough: false,
+    displayMode: "pet",
+    keyboardAnimation: true,
+    opacity: 1,
+    scale: 1,
+    position: null,
+    resources: DEFAULT_RESOURCES
+});
+
+function normalizeResources(value = {})
+{
+    return {
+        enabled: false !== value.enabled,
+        cpu: false !== value.cpu,
+        gpu: false !== value.gpu,
+        memory: false !== value.memory,
+        network: false !== value.network
+    };
+}
+
+function normalizePosition(value)
+{
+    if (!value || !Number.isFinite(Number(value.x)) || !Number.isFinite(Number(value.y)))
+    {
+        return null;
+    }
+    return { x: Math.round(Number(value.x)), y: Math.round(Number(value.y)) };
+}
+
+function normalizeSettings(value = {})
+{
+    const scale = [0.75, 1, 1.25, 1.5].includes(Number(value.scale)) ? Number(value.scale) : 1;
+    const opacity = [0.5, 0.75, 0.9, 1].includes(Number(value.opacity)) ? Number(value.opacity) : 1;
+
+    return {
+        clickThrough: true === value.clickThrough,
+        displayMode: "traffic" === value.displayMode ? "traffic" : "pet",
+        keyboardAnimation: false !== value.keyboardAnimation,
+        opacity,
+        scale,
+        position: normalizePosition(value.position),
+        resources: normalizeResources(value.resources)
+    };
+}
+
+class SettingsStore
+{
+    constructor(filePath)
+    {
+        this.filePath = filePath;
+        this.value = normalizeSettings(DEFAULT_SETTINGS);
+    }
+
+    load()
+    {
+        try
+        {
+            this.value = normalizeSettings(JSON.parse(fs.readFileSync(this.filePath, "utf8")));
+        }
+        catch (_error)
+        {
+            this.value = normalizeSettings(DEFAULT_SETTINGS);
+        }
+
+        return this.value;
+    }
+
+    update(changes)
+    {
+        const resources = changes.resources
+            ? { ...this.value.resources, ...changes.resources }
+            : this.value.resources;
+        this.value = normalizeSettings({ ...this.value, ...changes, resources });
+        fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
+        fs.writeFileSync(this.filePath, `${JSON.stringify(this.value, null, 2)}\n`, "utf8");
+        return this.value;
+    }
+}
+
+module.exports = {
+    DEFAULT_RESOURCES,
+    DEFAULT_SETTINGS,
+    SettingsStore,
+    normalizePosition,
+    normalizeResources,
+    normalizeSettings
+};

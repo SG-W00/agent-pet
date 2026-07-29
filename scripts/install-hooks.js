@@ -12,7 +12,7 @@ const {
     writeJsonWithBackup
 } = require("./hook-config");
 
-function main()
+function installHooks()
 {
     const paths = configurationPaths();
     const sourceBridge = path.resolve(__dirname, "..", "bridge", "agent-pet-bridge.js");
@@ -37,11 +37,17 @@ function main()
     writeJsonWithBackup(paths.codexHooks, codexConfig);
     writeJsonWithBackup(paths.claudeSettings, claudeConfig);
 
+    return { ...paths, installedBridge };
+}
+
+function main()
+{
+    const paths = installHooks();
     process.stdout.write([
         "Agent Pet hooks installed.",
         `  Codex: ${paths.codexHooks}`,
         `  Claude Code: ${paths.claudeSettings}`,
-        `  Bridge: ${installedBridge}`,
+        `  Bridge: ${paths.installedBridge}`,
         "",
         "Restart both CLIs. In Codex, run /hooks once and trust the Agent Pet hooks.",
         "Run this installer separately in Windows and in each WSL distribution you use.",
@@ -49,12 +55,19 @@ function main()
     ].join("\n"));
 }
 
-try
+if (require.main === module)
 {
-    main();
+    try
+    {
+        main();
+    }
+    catch (error)
+    {
+        process.stderr.write(`Install failed: ${error.message}\n`);
+        process.exitCode = 1;
+    }
 }
-catch (error)
-{
-    process.stderr.write(`Install failed: ${error.message}\n`);
-    process.exitCode = 1;
-}
+
+module.exports = {
+    installHooks
+};

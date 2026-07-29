@@ -7,7 +7,37 @@ Agent Pet 是一个 Windows 桌面宠物，用动画和托盘状态显示以下 
 - Windows Claude Code
 - WSL Claude Code
 
-支持状态：空闲、执行中、等待输入、完成、错误。完成动画显示 15 秒后自动回到空闲；错误状态显示 60 秒。
+支持状态：空闲、执行中、等待输入/授权、完成、错误。完成动画显示 15 秒后自动回到空闲；错误状态显示 60 秒。
+
+## 桌面功能
+
+右键任务栏托盘中的 Agent Pet 图标可使用：
+
+- 桌宠 / 红绿灯两种显示模式
+- 75%、100%、125%、150% 四档大小
+- 50%、75%、90%、100% 四档透明度
+- 鼠标穿透模式；支持临时恢复拖动、记住任意桌面位置和恢复右下角
+- 键盘打字动画开关
+- CPU、GPU、内存、上下行网速资源条；支持总开关和单项开关
+- 点击右下角会话数，查看每个会话的 Agent、来源、状态、最近进度、目录和更新时间
+- 一键配置 Windows 和默认 WSL 中的 Codex / Claude Code hooks
+- 开机启动、显示/隐藏和清理会话
+
+检测到键盘活动时，宠物会显示键盘、双手交替敲击和按键粒子动画。监听器只在任意键按下时上报一个布尔活动信号，不输出、存储或传输具体按键。资源数据每 2 秒在本机采样一次，不上传云端。
+
+快捷键：
+
+| 操作 | 快捷键 |
+|---|---|
+| 允许当前 Agent 授权请求 | `Ctrl+Shift+Enter` |
+| 拒绝当前 Agent 授权请求 | `Ctrl+Shift+Backspace` |
+| 开关鼠标穿透 | `Ctrl+Shift+Alt+P` |
+| 穿透时临时调整位置（20 秒） | `Ctrl+Shift+Alt+M` |
+| 打开/关闭会话详情 | `Ctrl+Shift+Alt+S` |
+
+出现授权请求时，即使开启了鼠标穿透，桌宠也会暂时恢复点击并显示“允许/拒绝”按钮。桌宠不会自动批准；150 秒内没有选择时，授权会回退给原终端流程。
+
+> 点击允许前仍应核对工具名称和操作摘要，尤其是删除文件、安装软件、推送代码等操作。
 
 ## 开发运行
 
@@ -18,11 +48,17 @@ npm install
 npm start
 ```
 
-右键托盘图标可以切换“桌宠模式”和“红绿灯模式”、清除状态或设置开机启动。
+## 一键配置本机 AI
 
-## 安装 Agent hooks
+启动桌宠，右键托盘图标，选择“一键配置本机 AI（Windows + 默认 WSL）”。完成后：
 
-hooks 安装器会合并已有配置并创建 `.agent-pet.bak` 备份，不会替换无关 hooks。
+1. 重启正在运行的 Codex CLI 和 Claude Code。
+2. 在 Codex 中输入 `/hooks`。
+3. 审阅并信任 Agent Pet hooks。
+
+安装器会合并已有配置并首次创建 `.agent-pet.bak` 备份，不会替换无关 hooks。若使用多个 WSL 发行版，需要在其余发行版中按下面的手动方式分别安装。
+
+## 手动安装 Agent hooks
 
 ### Windows
 
@@ -66,7 +102,7 @@ npm run simulate -- idle codex
 npm run uninstall-hooks
 ```
 
-## 状态协议
+## 本地通信与安全
 
 每个会话在 Windows 下写入：
 
@@ -74,7 +110,7 @@ npm run uninstall-hooks
 %LOCALAPPDATA%\AgentPet\states\<session-id>.json
 ```
 
-WSL bridge 通过 `cmd.exe` 查询 Windows 的 `%LOCALAPPDATA%`，因此与 Windows Agent 共用同一状态目录，不需要监听网络端口。
+待授权请求通过同级的 `approvals` 目录交换短期 JSON 文件。WSL bridge 使用 `cmd.exe` 查询 Windows 的 `%LOCALAPPDATA%`，因此与 Windows Agent 共用同一目录；不开放网络端口，也不需要云端服务。
 
 状态优先级为：
 
@@ -89,7 +125,7 @@ npm run test
 npm run dist
 ```
 
-发布产物位于 `dist\AgentPet-0.1.0-portable.exe`。
+发布产物位于 `dist\AgentPet-<version>-portable.exe`。
 
 ## 素材说明
 
