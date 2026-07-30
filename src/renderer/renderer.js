@@ -34,6 +34,13 @@ const meritToast = document.getElementById("merit-toast");
 const woodenFishSound = document.getElementById("wooden-fish-sound");
 const clickSpeedLabel = document.getElementById("click-speed-label");
 const dailyMeritSummary = document.getElementById("daily-merit-summary");
+const updatePanel = document.getElementById("update-panel");
+const updateStatus = document.getElementById("update-status");
+const updateProgressArea = document.getElementById("update-progress-area");
+const updateProgressFill = document.getElementById("update-progress-fill");
+const updateProgressPct = document.getElementById("update-progress-pct");
+const updateActionBtn = document.getElementById("update-action-btn");
+const updateDismissBtn = document.getElementById("update-dismiss-btn");
 
 let latestSnapshot = { state: "idle", active: null, sessions: [] };
 let typingActive = false;
@@ -59,6 +66,88 @@ const CLICK_SPEEDS = Object.freeze([
     { name: "quick", maximumInterval: 700, label: "渐入佳境", sound: "咚！" },
     { name: "steady", maximumInterval: Number.POSITIVE_INFINITY, label: "静心一击", sound: "咚" }
 ]);
+
+function applyUpdateState(data)
+{
+    if (!data || !data.state)
+    {
+        updatePanel.hidden = true;
+        return;
+    }
+
+    switch (data.state)
+    {
+        case "checking":
+            updatePanel.hidden = false;
+            updateProgressArea.hidden = true;
+            updateActionBtn.hidden = true;
+            updateDismissBtn.hidden = true;
+            updateStatus.textContent = "检查更新中…";
+            break;
+
+        case "available":
+            updatePanel.hidden = false;
+            updateProgressArea.hidden = true;
+            updateActionBtn.hidden = false;
+            updateDismissBtn.hidden = false;
+            updateActionBtn.textContent = "下载 v" + (data.version || "");
+            updateStatus.textContent = "发现新版本 v" + (data.version || "");
+            updateActionBtn.onclick = () => window.agentPet.startUpdateDownload();
+            break;
+
+        case "downloading":
+            updatePanel.hidden = false;
+            updateProgressArea.hidden = false;
+            updateActionBtn.hidden = true;
+            updateDismissBtn.hidden = false;
+            updateDismissBtn.onclick = () => window.agentPet.dismissUpdate();
+            updateStatus.textContent = "正在下载更新…";
+            break;
+
+        case "downloaded":
+            updatePanel.hidden = false;
+            updateProgressArea.hidden = true;
+            updateActionBtn.hidden = false;
+            updateDismissBtn.hidden = true;
+            updateActionBtn.textContent = "立即重启安装";
+            updateStatus.textContent = "更新已下载";
+            updateActionBtn.onclick = () => window.agentPet.applyUpdate();
+            break;
+
+        case "error":
+            updateStatus.textContent = "更新失败：" + (data.error || "未知错误");
+            updatePanel.hidden = false;
+            updateProgressArea.hidden = true;
+            updateActionBtn.hidden = false;
+            updateDismissBtn.hidden = false;
+            updateActionBtn.textContent = "重试";
+            updateActionBtn.onclick = () => window.agentPet.checkUpdate();
+            if (updatePanel._errorTimer) clearTimeout(updatePanel._errorTimer);
+            updatePanel._errorTimer = setTimeout(() => { updatePanel.hidden = true; }, 5000);
+            break;
+
+        case "up-to-date":
+            updateStatus.textContent = "已是最新版本";
+            updatePanel.hidden = false;
+            updateProgressArea.hidden = true;
+            updateActionBtn.hidden = true;
+            updateDismissBtn.hidden = false;
+            updateDismissBtn.onclick = () => { updatePanel.hidden = true; };
+            setTimeout(() => { updatePanel.hidden = true; }, 3000);
+            break;
+
+        default:
+            updatePanel.hidden = true;
+    }
+}
+
+function applyUpdateProgress(data)
+{
+    if (!data) return;
+    const pct = data.percent || 0;
+    updateProgressFill.style.width = Math.min(100, pct) + "%";
+    updateProgressPct.textContent = pct + "%";
+}
 
 function applyState(snapshot)
 {
@@ -535,6 +624,8 @@ window.agentPet.onPositionAdjustMode((active) => {
     document.body.classList.toggle("is-position-adjusting", positionAdjusting);
     applyState(latestSnapshot);
 });
+window.agentPet.onUpdateState(applyUpdateState);
+window.agentPet.onUpdateProgress(applyUpdateProgress);
 
 mascot.addEventListener("mouseenter", playRandomHoverAnimation);
 
@@ -617,3 +708,4 @@ clearFinishedButton.addEventListener("click", () => window.agentPet.clearFinishe
 document.getElementById("approval-allow").addEventListener("click", () => submitApproval("allow"));
 document.getElementById("approval-deny").addEventListener("click", () => submitApproval("deny"));
 document.getElementById("hide-button").addEventListener("click", () => window.agentPet.hide());
+updateDismissBtn.addEventListener("click", () => window.agentPet.dismissUpdate());

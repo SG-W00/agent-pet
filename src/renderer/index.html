@@ -49,6 +49,21 @@
             <span class="resource-chip" data-resource="memory"><b>内存</b><em id="resource-memory">--%</em></span>
             <span class="resource-chip resource-network" data-resource="network"><b>网速</b><em id="resource-network">↓ -- ↑ --</em></span>
         </section>
+
+        <section id="update-panel" hidden aria-live="polite">
+            <span id="update-status"></span>
+            <div id="update-progress-area" hidden>
+                <div id="update-progress-track">
+                    <div id="update-progress-fill"></div>
+                </div>
+                <span id="update-progress-pct"></span>
+            </div>
+            <div id="update-actions">
+                <button id="update-action-btn" type="button"></button>
+                <button id="update-dismiss-btn" type="button">忽略</button>
+            </div>
+        </section>
+
         <footer id="session-summary" role="button" tabindex="0" title="点击查看每个会话的进度">
             <span id="provider-label">Agent Pet</span>
             <span id="session-count">0 个会话 ›</span>
