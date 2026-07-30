@@ -12,6 +12,7 @@ const { windowsPathToWsl } = require("../src/ai-setup");
 const { cpuPercent } = require("../src/resource-monitor");
 const { importImageFiles, validateImageFile } = require("../src/custom-assets");
 const { createTrayBitmap, STATUS_RGB, TRAY_ICON_SIZE } = require("../src/tray-icon");
+const { extractForegroundBitmap } = require("../src/foreground-extractor");
 
 test("keyboard activity emits only active and idle transitions", () => {
     const events = [];
@@ -48,6 +49,7 @@ test("settings accept only supported size and opacity presets", () => {
         animation: {
             style: "classic",
             hoverEnabled: true,
+            autoExtractMascot: true,
             mascotPath: null,
             hoverFrames: [],
             hoverFrameMs: 110
@@ -117,6 +119,7 @@ test("animation settings support styles, custom images and bounded frame speed",
         animation: {
             style: "playful",
             hoverEnabled: false,
+            autoExtractMascot: false,
             mascotPath: "C:\\pet.png",
             hoverFrames: ["C:\\frame-1.png", "C:\\frame-2.png"],
             hoverFrameMs: 70
@@ -124,9 +127,113 @@ test("animation settings support styles, custom images and bounded frame speed",
     });
     assert.equal(settings.animation.style, "playful");
     assert.equal(settings.animation.hoverEnabled, false);
+    assert.equal(settings.animation.autoExtractMascot, false);
     assert.equal(settings.animation.hoverFrames.length, 2);
     assert.equal(settings.animation.hoverFrameMs, 70);
     assert.equal(normalizeSettings({ animation: { style: "unknown", hoverFrameMs: 1 } }).animation.style, "classic");
+});
+
+test("foreground extraction removes edge-connected flat background and crops around subject", () => {
+    const width = 12;
+    const height = 10;
+    const bitmap = Buffer.alloc(width * height * 4);
+    for (let index = 0; index < width * height; index++)
+    {
+        bitmap[(index * 4)] = 245;
+        bitmap[(index * 4) + 1] = 245;
+        bitmap[(index * 4) + 2] = 245;
+        bitmap[(index * 4) + 3] = 255;
+    }
+    for (let y = 3; y <= 7; y++)
+    {
+        for (let x = 4; x <= 8; x++)
+        {
+            const offset = ((y * width) + x) * 4;
+            bitmap[offset] = 20;
+            bitmap[offset + 1] = 70;
+            bitmap[offset + 2] = 160;
+        }
+    }
+
+    const result = extractForegroundBitmap(bitmap, width, height, { paddingRatio: 0 });
+    assert.equal(result.changed, true);
+    assert.equal(result.bitmap[3], 0);
+    assert.equal(result.bitmap[(((5 * width) + 6) * 4) + 3], 255);
+    assert.deepEqual(result.bounds, { x: 2, y: 1, width: 9, height: 9 });
+});
+
+test("foreground extraction ignores a thin dark image border", () => {
+    const width = 20;
+    const height = 20;
+    const bitmap = Buffer.alloc(width * height * 4);
+    for (let y = 0; y < height; y++)
+    {
+        for (let x = 0; x < width; x++)
+        {
+            const offset = ((y * width) + x) * 4;
+            const border = 0 === x || 0 === y || width - 1 === x || height - 1 === y;
+            const color = border ? 8 : 240;
+            bitmap[offset] = color;
+            bitmap[offset + 1] = color;
+            bitmap[offset + 2] = color;
+            bitmap[offset + 3] = 255;
+        }
+    }
+    for (let y = 6; y <= 16; y++)
+    {
+        for (let x = 7; x <= 12; x++)
+        {
+            const offset = ((y * width) + x) * 4;
+            bitmap[offset] = 30;
+            bitmap[offset + 1] = 80;
+            bitmap[offset + 2] = 170;
+        }
+    }
+    const result = extractForegroundBitmap(bitmap, width, height);
+    assert.deepEqual(result.bounds, { x: 5, y: 4, width: 10, height: 15 });
+});
+
+test("foreground extraction preserves a white subject connected to the bottom edge", () => {
+    const width = 20;
+    const height = 20;
+    const bitmap = Buffer.alloc(width * height * 4);
+    for (let index = 0; index < width * height; index++)
+    {
+        bitmap[(index * 4)] = 240;
+        bitmap[(index * 4) + 1] = 240;
+        bitmap[(index * 4) + 2] = 240;
+        bitmap[(index * 4) + 3] = 255;
+    }
+    for (let y = 5; y < height; y++)
+    {
+        for (const x of [6, 13])
+        {
+            const offset = ((y * width) + x) * 4;
+            bitmap[offset] = 25;
+            bitmap[offset + 1] = 25;
+            bitmap[offset + 2] = 25;
+        }
+    }
+    for (let x = 6; x <= 13; x++)
+    {
+        const offset = ((5 * width) + x) * 4;
+        bitmap[offset] = 25;
+        bitmap[offset + 1] = 25;
+        bitmap[offset + 2] = 25;
+    }
+    for (let y = 6; y < height; y++)
+    {
+        for (let x = 7; x <= 12; x++)
+        {
+            const offset = ((y * width) + x) * 4;
+            bitmap[offset] = 245;
+            bitmap[offset + 1] = 245;
+            bitmap[offset + 2] = 245;
+        }
+    }
+    const result = extractForegroundBitmap(bitmap, width, height);
+    assert.equal(result.bitmap[(((18 * width) + 10) * 4) + 3], 255);
+    assert.equal(result.bitmap[(((2 * width) + 2) * 4) + 3], 0);
 });
 
 test("custom animation assets are copied locally in natural filename order", () => {

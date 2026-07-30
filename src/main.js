@@ -19,6 +19,7 @@ const { installLocalAi } = require("./ai-setup");
 const { ApprovalStore } = require("./approval-store");
 const { KeyboardActivityMonitor } = require("./keyboard-activity");
 const { importImageFiles } = require("./custom-assets");
+const { extractForegroundBitmap } = require("./foreground-extractor");
 const { ResourceMonitor } = require("./resource-monitor");
 const { SettingsStore } = require("./settings-store");
 const { StateStore } = require("./state-store");
@@ -76,6 +77,37 @@ function imageFileUrl(filePath)
     return filePath && fs.existsSync(filePath) ? pathToFileURL(filePath).href : null;
 }
 
+function extractMascotImage(filePath)
+{
+    if (".gif" === path.extname(filePath).toLowerCase())
+    {
+        return filePath;
+    }
+    const sourceImage = nativeImage.createFromPath(filePath);
+    const size = sourceImage.getSize();
+    if (sourceImage.isEmpty() || 1 > size.width || 1 > size.height)
+    {
+        return filePath;
+    }
+    const result = extractForegroundBitmap(sourceImage.toBitmap(), size.width, size.height);
+    if (!result.changed)
+    {
+        return filePath;
+    }
+    const processedImage = nativeImage.createFromBitmap(result.bitmap, {
+        width: size.width,
+        height: size.height,
+        scaleFactor: 1
+    }).crop(result.bounds);
+    if (processedImage.isEmpty())
+    {
+        return filePath;
+    }
+    const outputPath = filePath.replace(/\.[^.]+$/, "-extracted.png");
+    fs.writeFileSync(outputPath, processedImage.toPNG());
+    return outputPath;
+}
+
 function publicWindowSettings()
 {
     return {
@@ -125,6 +157,29 @@ function placeWindow(forceDefault = false)
     const y = Math.max(bounds.y, Math.min(preferred.y, bounds.y + bounds.height - height));
     suppressMoveSaveUntil = Date.now() + 500;
     mainWindow.setPosition(x, y, false);
+}
+
+function maintainWindowLayer()
+{
+    if (!mainWindow || mainWindow.isDestroyed())
+    {
+        return;
+    }
+    mainWindow.setAlwaysOnTop(true, "screen-saver");
+}
+
+function bringWindowToFront()
+{
+    if (!mainWindow || mainWindow.isDestroyed())
+    {
+        return;
+    }
+    maintainWindowLayer();
+    if (!mainWindow.isVisible())
+    {
+        mainWindow.showInactive();
+    }
+    mainWindow.moveTop();
 }
 
 function saveWindowPosition()
@@ -191,6 +246,7 @@ function applyWindowSettings()
         true
     );
     mainWindow.setOpacity(settings.opacity);
+    maintainWindowLayer();
     applyInteractionMode();
     mainWindow.webContents.send("display-mode", settings.displayMode);
     mainWindow.webContents.send("window-settings", publicWindowSettings());
@@ -413,7 +469,10 @@ async function chooseMascotImage()
     }
     try
     {
-        const [mascotPath] = importImageFiles(result.filePaths, customAssetDirectory(), "mascot");
+        const [importedPath] = importImageFiles(result.filePaths, customAssetDirectory(), "mascot");
+        const mascotPath = settings.animation.autoExtractMascot
+            ? extractMascotImage(importedPath)
+            : importedPath;
         updateSettings({ animation: { mascotPath } });
     }
     catch (error)
@@ -468,6 +527,10 @@ function rebuildTrayMenu()
                 }
                 rebuildTrayMenu();
             }
+        },
+        {
+            label: "将桌宠显示到最前面",
+            click: bringWindowToFront
         },
         { type: "separator" },
         {
@@ -552,6 +615,12 @@ function rebuildTrayMenu()
                     }))
                 },
                 { type: "separator" },
+                {
+                    label: "主图自动去背景和裁边",
+                    type: "checkbox",
+                    checked: settings.animation.autoExtractMascot,
+                    click: (item) => updateSettings({ animation: { autoExtractMascot: item.checked } })
+                },
                 { label: "更换桌宠主图…", click: chooseMascotImage },
                 { label: "导入悬停动画帧…", click: chooseHoverFrames },
                 {
@@ -677,17 +746,21 @@ function createWindow()
         }
     });
 
-    mainWindow.setAlwaysOnTop(true, "floating");
+    maintainWindowLayer();
     mainWindow.loadFile(path.join(__dirname, "renderer", "index.html"));
     mainWindow.once("ready-to-show", () => {
         applyWindowSettings();
-        mainWindow.showInactive();
+        bringWindowToFront();
         mainWindow.webContents.send("agent-state", latestSnapshot);
         mainWindow.webContents.send("typing-activity", typingActive);
         mainWindow.webContents.send("approval-request", latestApproval);
         mainWindow.webContents.send("approval-requests", latestApprovals);
         mainWindow.webContents.send("resource-usage", latestResources);
         mainWindow.webContents.send("position-adjust-mode", positionAdjusting);
+    });
+    mainWindow.on("show", () => {
+        maintainWindowLayer();
+        mainWindow.moveTop();
     });
     mainWindow.on("move", saveWindowPosition);
     mainWindow.on("close", (event) => {
@@ -705,14 +778,7 @@ function createTray()
     tray = new Tray(createTrayImage("idle"));
     tray.setToolTip("Agent Pet · 空闲");
     tray.on("click", () => {
-        if (mainWindow.isVisible())
-        {
-            mainWindow.hide();
-        }
-        else
-        {
-            mainWindow.showInactive();
-        }
+        bringWindowToFront();
         rebuildTrayMenu();
     });
     rebuildTrayMenu();
@@ -762,7 +828,7 @@ else
     app.on("second-instance", () => {
         if (mainWindow)
         {
-            mainWindow.show();
+            bringWindowToFront();
         }
     });
 

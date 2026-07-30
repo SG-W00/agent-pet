@@ -7,6 +7,7 @@ const ANIMATION_STYLES = Object.freeze(["classic", "playful", "gentle", "still"]
 const DEFAULT_ANIMATION = Object.freeze({
     style: "classic",
     hoverEnabled: true,
+    autoExtractMascot: true,
     mascotPath: null,
     hoverFrames: [],
     hoverFrameMs: 110
@@ -53,6 +54,7 @@ function normalizeAnimation(value = {})
     return {
         style,
         hoverEnabled: false !== value.hoverEnabled,
+        autoExtractMascot: false !== value.autoExtractMascot,
         mascotPath: "string" === typeof value.mascotPath && 0 < value.mascotPath.length ? value.mascotPath : null,
         hoverFrames,
         hoverFrameMs: Number.isFinite(frameMs) && 60 <= frameMs && 500 >= frameMs ? Math.round(frameMs) : DEFAULT_ANIMATION.hoverFrameMs
