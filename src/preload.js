@@ -14,5 +14,6 @@ contextBridge.exposeInMainWorld("agentPet", {
     setDisplayMode: (mode) => ipcRenderer.send("set-display-mode", mode),
     decideApproval: (decision) => ipcRenderer.send("approval-decision", decision),
     setSessionDetailsOpen: (open) => ipcRenderer.send("session-details-state", open),
+    dragWindow: (dx, dy) => ipcRenderer.send("window-drag", dx, dy),
     hide: () => ipcRenderer.send("hide-window")
 });
