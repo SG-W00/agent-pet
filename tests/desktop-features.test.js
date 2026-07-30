@@ -70,6 +70,7 @@ test("approval decisions are written only for existing safe requests", () => {
         const store = new ApprovalStore(directory);
         const request = {
             id: "request-1",
+            sessionId: "session-1",
             createdAt: new Date().toISOString(),
             expiresAt: new Date(Date.now() + 60000).toISOString()
         };
@@ -78,6 +79,10 @@ test("approval decisions are written only for existing safe requests", () => {
         assert.equal(store.active().id, "request-1");
         assert.equal(store.decide("request-1", "allow"), true);
         assert.equal(JSON.parse(fs.readFileSync(path.join(directory, "request-1.decision.json"), "utf8")).decision, "allow");
+        assert.equal(store.dismissSession("session-1"), 1);
+        assert.equal(fs.existsSync(path.join(directory, "request-1.request.json")), false);
+        assert.equal(fs.existsSync(path.join(directory, "request-1.decision.json")), false);
+        assert.equal(store.active(), null);
         assert.equal(store.decide("../escape", "allow"), false);
     }
     finally

@@ -77,6 +77,49 @@ class ApprovalStore extends EventEmitter
         return true;
     }
 
+    dismissSession(sessionId)
+    {
+        const id = String(sessionId || "");
+        if (!SAFE_ID.test(id))
+        {
+            return 0;
+        }
+
+        fs.mkdirSync(this.approvalDirectory, { recursive: true });
+        let removed = 0;
+
+        for (const name of fs.readdirSync(this.approvalDirectory))
+        {
+            if (!name.endsWith(".request.json"))
+            {
+                continue;
+            }
+
+            const requestPath = path.join(this.approvalDirectory, name);
+            try
+            {
+                const request = JSON.parse(fs.readFileSync(requestPath, "utf8"));
+                if (id === request.sessionId)
+                {
+                    const requestId = String(request.id || "");
+                    fs.rmSync(requestPath, { force: true });
+                    if (SAFE_ID.test(requestId))
+                    {
+                        fs.rmSync(path.join(this.approvalDirectory, `${requestId}.decision.json`), { force: true });
+                    }
+                    removed++;
+                }
+            }
+            catch (_error)
+            {
+                // Keep unreadable files so diagnostics remain available.
+            }
+        }
+
+        this.refresh();
+        return removed;
+    }
+
     stop()
     {
         if (this.timer)

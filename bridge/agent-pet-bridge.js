@@ -162,6 +162,13 @@ function waitForApprovalDecision(request, stateDirectory)
                 }
             }
 
+            if (!fs.existsSync(requestPath))
+            {
+                fs.rmSync(decisionPath, { force: true });
+                resolve(null);
+                return;
+            }
+
             if (Date.now() >= deadline)
             {
                 fs.rmSync(requestPath, { force: true });

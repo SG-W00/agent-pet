@@ -75,7 +75,22 @@ app.whenReady().then(async () => {
             expiresAt: new Date(Date.now() + 60000).toISOString()
         }]);
         window.webContents.send("show-session-details", true);
-    }    else if ("approval" === scenario)
+    }
+    else if ("wooden-fish" === scenario)
+    {
+        const result = await window.webContents.executeJavaScript(`(() => {
+            try {
+                localStorage.removeItem("agent-pet.daily-merit.v1");
+                document.getElementById("mascot").dispatchEvent(new MouseEvent("mousedown", { button: 0, screenX: 120, screenY: 150, clientX: 120, clientY: 150, bubbles: true }));
+                document.dispatchEvent(new MouseEvent("mouseup", { button: 0, screenX: 120, screenY: 150, clientX: 120, clientY: 150, bubbles: true }));
+                return "ok";
+            } catch (error) {
+                return "error: " + (error.stack || error.message);
+            }
+        })()`);
+        process.stdout.write(`Wooden fish action ${result}\n`);
+    }
+    else if ("approval" === scenario)
     {
         window.webContents.send("approval-request", {
             id: "visual-smoke-test",
@@ -85,7 +100,36 @@ app.whenReady().then(async () => {
         });
     }
 
-    await new Promise((resolve) => setTimeout(resolve, "hover" === scenario ? 380 : 900));
+    const captureDelay = "hover" === scenario ? 380 : ("wooden-fish" === scenario ? 280 : 900);
+    await new Promise((resolve) => setTimeout(resolve, captureDelay));
+    if ("wooden-fish" === scenario)
+    {
+        const ui = await window.webContents.executeJavaScript(`(() => {
+            document.getElementById("mascot").dispatchEvent(new MouseEvent("mousedown", { button: 0, screenX: 120, screenY: 150, clientX: 120, clientY: 150, bubbles: true }));
+            document.dispatchEvent(new MouseEvent("mouseup", { button: 0, screenX: 120, screenY: 150, clientX: 120, clientY: 150, bubbles: true }));
+            document.getElementById("mascot").dispatchEvent(new MouseEvent("mousedown", { button: 0, screenX: 120, screenY: 150, clientX: 120, clientY: 150, bubbles: true }));
+            document.dispatchEvent(new MouseEvent("mousemove", { button: 0, screenX: 132, screenY: 150, clientX: 132, clientY: 150, bubbles: true }));
+            document.dispatchEvent(new MouseEvent("mouseup", { button: 0, screenX: 132, screenY: 150, clientX: 132, clientY: 150, bubbles: true }));
+            return JSON.stringify({
+                hitting: document.getElementById("wooden-fish-scene").classList.contains("is-hitting"),
+                meritCountAfterClicksAndDrag: document.getElementById("wooden-fish-scene").dataset.meritCount,
+                speed: document.getElementById("wooden-fish-scene").dataset.speed,
+                speedLabel: document.getElementById("click-speed-label").textContent,
+                dailyMerit: document.getElementById("wooden-fish-scene").dataset.dailyMerit,
+                hasMallet: null !== document.getElementById("wooden-fish-mallet"),
+                hasFish: null !== document.getElementById("wooden-fish"),
+                mascotHidden: document.body.classList.contains("is-wooden-fish-hit")
+            });
+        })()`);
+        process.stdout.write(`Wooden fish UI check ${ui}\n`);
+        await new Promise((resolve) => setTimeout(resolve, 1050));
+        const summary = await window.webContents.executeJavaScript(`JSON.stringify({
+            mascotRestored: !document.body.classList.contains("is-wooden-fish-hit"),
+            summaryVisible: document.getElementById("daily-merit-summary").classList.contains("is-visible"),
+            summaryText: document.getElementById("daily-merit-summary").textContent
+        })`);
+        process.stdout.write(`Daily merit UI check ${summary}\n`);
+    }
     if ("sessions" === scenario)
     {
         const ui = await window.webContents.executeJavaScript(`JSON.stringify({
@@ -104,4 +148,7 @@ app.whenReady().then(async () => {
     fs.writeFileSync(outputPath, image.toPNG());
     process.stdout.write(`Captured ${outputPath}\n`);
     app.quit();
+}).catch((error) => {
+    process.stderr.write(`${error.stack || error.message}\n`);
+    app.exit(1);
 });

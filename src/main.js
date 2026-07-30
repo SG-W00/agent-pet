@@ -335,13 +335,39 @@ function publishApprovals(requests)
     rebuildTrayMenu();
 }
 
-function dismissSession(sessionId)
+async function dismissSession(sessionId, force = false)
 {
     const session = latestSnapshot.sessions.find((item) => item.id === sessionId);
-    if (!session || !["idle", "completed", "error"].includes(session.state))
+    if (!session)
     {
         return false;
     }
+
+    const dismissible = ["idle", "completed", "error"].includes(session.state);
+    if (!dismissible && !force)
+    {
+        return false;
+    }
+
+    if (!dismissible)
+    {
+        const result = await dialog.showMessageBox(mainWindow, {
+            type: "warning",
+            buttons: ["取消", "强制关闭"],
+            defaultId: 0,
+            cancelId: 0,
+            title: "强制关闭会话记录",
+            message: `确定关闭 ${session.provider || "Agent"} 会话记录吗？`,
+            detail: "这只会移除桌宠中的状态和待审批提示，不会终止 Agent。若 Agent 继续发送 hook，会话可能重新出现。",
+            noLink: true
+        });
+        if (1 !== result.response)
+        {
+            return false;
+        }
+        approvalStore.dismissSession(sessionId);
+    }
+
     return stateStore.remove(sessionId);
 }
 
@@ -782,7 +808,13 @@ else
                 decideApproval(payload);
             }
         });
-        ipcMain.on("dismiss-session", (_event, sessionId) => dismissSession(sessionId));
+        ipcMain.handle("dismiss-session", (_event, payload) => {
+            if (payload && "object" === typeof payload)
+            {
+                return dismissSession(payload.sessionId, true === payload.force);
+            }
+            return dismissSession(payload);
+        });
         ipcMain.on("clear-finished-sessions", () => stateStore.clearFinished());
         ipcMain.on("session-details-state", (_event, open) => {
             sessionDetailsOpen = true === open;

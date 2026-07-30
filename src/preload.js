@@ -14,7 +14,7 @@ contextBridge.exposeInMainWorld("agentPet", {
     onShowSessionDetails: (callback) => ipcRenderer.on("show-session-details", (_event, open) => callback(open)),
     setDisplayMode: (mode) => ipcRenderer.send("set-display-mode", mode),
     decideApproval: (decision, requestId = null) => ipcRenderer.send("approval-decision", { decision, requestId }),
-    dismissSession: (sessionId) => ipcRenderer.send("dismiss-session", sessionId),
+    dismissSession: (sessionId, force = false) => ipcRenderer.invoke("dismiss-session", { sessionId, force }),
     clearFinishedSessions: () => ipcRenderer.send("clear-finished-sessions"),
     setSessionDetailsOpen: (open) => ipcRenderer.send("session-details-state", open),
     dragWindow: (dx, dy) => ipcRenderer.send("window-drag", dx, dy),

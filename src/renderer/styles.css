@@ -1032,8 +1032,308 @@ body.hover-action-squash #mascot {
     font-size: 8px;
 }
 
+.session-force-dismiss {
+    color: #ffd0d6;
+    background: rgba(255, 93, 115, 0.24);
+}
+
 .session-actions button:hover,
 .session-dismiss:hover,
 #clear-finished-sessions:hover:not(:disabled) {
     filter: brightness(1.14);
+}
+
+/* Click-position wooden fish feedback */
+#wooden-fish-scene {
+    position: absolute;
+    z-index: 7;
+    width: 118px;
+    height: 104px;
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+}
+
+#wooden-fish-scene.is-hitting {
+    animation: wooden-fish-scene 850ms ease-out both;
+}
+
+body.is-wooden-fish-hit #mascot,
+body.is-wooden-fish-hit #typing-scene,
+body.is-wooden-fish-hit #working-dots,
+body.is-wooden-fish-hit #effect-layer,
+body.is-wooden-fish-hit #state-badge {
+    opacity: 0 !important;
+    animation: none !important;
+}
+
+#wooden-fish {
+    position: absolute;
+    left: 50%;
+    top: 53%;
+    width: 76px;
+    height: 50px;
+    border: 4px solid #4f250f;
+    border-radius: 54% 46% 48% 52% / 60% 58% 42% 40%;
+    background: linear-gradient(155deg, #f6a839 0%, #c8651d 58%, #86360f 100%);
+    box-shadow: 0 7px 11px rgba(0, 0, 0, 0.4), inset 0 4px rgba(255, 223, 143, 0.45);
+    transform: translate(-50%, -50%) rotate(-4deg);
+}
+
+#wooden-fish::before {
+    content: "";
+    position: absolute;
+    left: 14px;
+    top: 10px;
+    width: 40px;
+    height: 8px;
+    border-radius: 50%;
+    background: #3d1b0d;
+    box-shadow: inset 0 2px 2px rgba(0, 0, 0, 0.58);
+    transform: rotate(-3deg);
+}
+
+#wooden-fish::after {
+    content: "";
+    position: absolute;
+    right: 9px;
+    bottom: 7px;
+    width: 11px;
+    height: 10px;
+    border-radius: 50%;
+    background: rgba(255, 216, 119, 0.76);
+}
+
+#wooden-fish-mallet {
+    position: absolute;
+    left: 48%;
+    top: 22%;
+    z-index: 3;
+    width: 64px;
+    height: 9px;
+    border: 2px solid #633514;
+    border-radius: 7px;
+    background: linear-gradient(180deg, #f1bd72 0%, #c77a32 55%, #8b451d 100%);
+    box-shadow: 0 3px 5px rgba(0, 0, 0, 0.34), inset 0 1px rgba(255, 235, 185, 0.62);
+    transform: rotate(14deg);
+    transform-origin: 6px 50%;
+}
+
+#wooden-fish-mallet i {
+    position: absolute;
+    left: -17px;
+    top: -8px;
+    width: 24px;
+    height: 24px;
+    border: 2px solid #633514;
+    border-radius: 50% 45% 48% 52%;
+    background: radial-gradient(circle at 35% 28%, #ffe0aa 0%, #d99348 48%, #8e471f 100%);
+    box-shadow: 0 3px 5px rgba(0, 0, 0, 0.34), inset 2px 2px rgba(255, 241, 203, 0.55);
+}
+
+#wooden-fish-scene.is-hitting #wooden-fish-mallet {
+    animation: wooden-fish-mallet-tap 520ms cubic-bezier(0.3, 0.8, 0.25, 1) both;
+}
+
+#wooden-fish-scene[data-speed="fast"].is-hitting #wooden-fish-mallet {
+    animation-duration: 390ms;
+}
+
+#wooden-fish-scene[data-speed="turbo"].is-hitting #wooden-fish-mallet {
+    animation-duration: 280ms;
+}
+#wooden-fish-scene.is-hitting #wooden-fish {
+    animation: wooden-fish-bounce 560ms ease-out both;
+}
+
+#wooden-fish-scene::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 53%;
+    width: 68px;
+    height: 68px;
+    border: 3px solid rgba(255, 221, 106, 0.9);
+    border-radius: 50%;
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.4);
+}
+
+#wooden-fish-scene.is-hitting::before {
+    animation: wooden-fish-ring 620ms 90ms ease-out both;
+}
+
+#merit-toast {
+    position: absolute;
+    left: 50%;
+    top: 9px;
+    z-index: 3;
+    padding: 4px 9px;
+    border: 1px solid rgba(255, 224, 120, 0.9);
+    border-radius: 13px;
+    color: #fff3a4;
+    background: rgba(83, 43, 12, 0.92);
+    box-shadow: 0 3px 12px rgba(255, 183, 44, 0.38);
+    font-size: 12px;
+    font-weight: 900;
+    white-space: nowrap;
+    opacity: 0;
+    transform: translateX(-50%);
+}
+
+#wooden-fish-scene.is-hitting #merit-toast {
+    animation: merit-rise 820ms ease-out both;
+}
+
+#wooden-fish-sound {
+    position: absolute;
+    right: 2px;
+    top: 37px;
+    z-index: 3;
+    color: #ffe994;
+    font-size: 22px;
+    font-weight: 900;
+    text-shadow: 0 0 9px rgba(255, 183, 44, 0.82);
+    opacity: 0;
+}
+
+#wooden-fish-scene.is-hitting #wooden-fish-sound {
+    animation: wooden-fish-sound 650ms 80ms ease-out both;
+}
+
+@keyframes wooden-fish-scene {
+    0% { opacity: 0; }
+    6%, 80% { opacity: 1; }
+    100% { opacity: 0; }
+}
+
+@keyframes wooden-fish-mallet-tap {
+    0% { transform: translate(-2px, -7px) rotate(5deg); }
+    42% { transform: translate(0, 4px) rotate(17deg); }
+    58% { transform: translate(0, 1px) rotate(12deg); }
+    100% { transform: translate(0, 0) rotate(14deg); }
+}
+@keyframes wooden-fish-bounce {
+    0% { transform: translate(-50%, -50%) rotate(-4deg) scale(0.82); }
+    18% { transform: translate(-50%, -50%) rotate(1deg) scale(1.08, 0.9); }
+    42% { transform: translate(-50%, -50%) rotate(-7deg) scale(0.94, 1.08); }
+    68% { transform: translate(-50%, -50%) rotate(-2deg) scale(1.04, 0.96); }
+    100% { transform: translate(-50%, -50%) rotate(-4deg) scale(1); }
+}
+
+@keyframes wooden-fish-ring {
+    0% { transform: translate(-50%, -50%) scale(0.35); opacity: 0; }
+    22% { opacity: 1; }
+    100% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
+}
+
+@keyframes merit-rise {
+    0% { transform: translate(-50%, 12px) scale(0.7); opacity: 0; }
+    20% { transform: translate(-50%, 0) scale(1.08); opacity: 1; }
+    72% { transform: translate(-50%, -15px) scale(1); opacity: 1; }
+    100% { transform: translate(-50%, -29px) scale(0.92); opacity: 0; }
+}
+
+@keyframes wooden-fish-sound {
+    0% { transform: scale(0.45); opacity: 0; }
+    24% { transform: scale(1.3) rotate(7deg); opacity: 1; }
+    100% { transform: translate(13px, -18px) scale(0.88); opacity: 0; }
+}
+
+#click-speed-label {
+    position: absolute;
+    left: 50%;
+    bottom: 0;
+    z-index: 4;
+    padding: 2px 7px;
+    border-radius: 9px;
+    color: #ffe994;
+    background: rgba(65, 31, 9, 0.82);
+    font-size: 9px;
+    font-weight: 800;
+    white-space: nowrap;
+    opacity: 0;
+    transform: translateX(-50%);
+}
+
+#wooden-fish-scene.is-hitting #click-speed-label {
+    animation: speed-label-pop 720ms 70ms ease-out both;
+}
+
+#wooden-fish-scene[data-speed="quick"] #wooden-fish {
+    filter: saturate(1.12) brightness(1.05);
+}
+
+#wooden-fish-scene[data-speed="fast"] #wooden-fish {
+    animation-duration: 420ms;
+    filter: saturate(1.28) brightness(1.1);
+}
+
+#wooden-fish-scene[data-speed="fast"]::before {
+    border-color: #83eaff;
+    box-shadow: 0 0 12px rgba(43, 196, 232, 0.72);
+}
+
+#wooden-fish-scene[data-speed="turbo"] #wooden-fish {
+    animation: wooden-fish-turbo 300ms ease-out both;
+    filter: saturate(1.45) brightness(1.16);
+}
+
+#wooden-fish-scene[data-speed="turbo"]::before {
+    border-color: #ffcf5c;
+    box-shadow: 0 0 16px rgba(255, 93, 115, 0.78), 0 0 28px rgba(255, 200, 87, 0.62);
+    animation-duration: 420ms;
+}
+
+#wooden-fish-scene[data-speed="turbo"] #merit-toast,
+#wooden-fish-scene[data-speed="turbo"] #click-speed-label {
+    color: #fff;
+    background: rgba(153, 52, 28, 0.94);
+    border-color: #ffd975;
+}
+
+#daily-merit-summary {
+    position: absolute;
+    left: 50%;
+    top: 26px;
+    z-index: 8;
+    min-width: 116px;
+    padding: 7px 12px;
+    border: 2px solid rgba(255, 221, 106, 0.9);
+    border-radius: 16px;
+    color: #fff4aa;
+    background: linear-gradient(145deg, rgba(107, 52, 13, 0.96), rgba(48, 27, 16, 0.96));
+    box-shadow: 0 7px 18px rgba(0, 0, 0, 0.38), 0 0 16px rgba(255, 183, 44, 0.25);
+    font-size: 13px;
+    font-weight: 900;
+    text-align: center;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(-50%);
+}
+
+#daily-merit-summary.is-visible {
+    animation: daily-merit-summary 1900ms ease-out both;
+}
+
+@keyframes speed-label-pop {
+    0% { transform: translate(-50%, 8px) scale(0.75); opacity: 0; }
+    22%, 72% { transform: translate(-50%, 0) scale(1); opacity: 1; }
+    100% { transform: translate(-50%, -7px) scale(0.94); opacity: 0; }
+}
+
+@keyframes wooden-fish-turbo {
+    0% { transform: translate(-50%, -50%) rotate(-10deg) scale(0.78); }
+    25% { transform: translate(-50%, -50%) rotate(8deg) scale(1.14, 0.86); }
+    48% { transform: translate(-50%, -50%) rotate(-9deg) scale(0.9, 1.12); }
+    72% { transform: translate(-50%, -50%) rotate(5deg) scale(1.08, 0.94); }
+    100% { transform: translate(-50%, -50%) rotate(-4deg) scale(1); }
+}
+
+@keyframes daily-merit-summary {
+    0% { transform: translate(-50%, 12px) scale(0.8); opacity: 0; }
+    12% { transform: translate(-50%, 0) scale(1.06); opacity: 1; }
+    70% { transform: translate(-50%, 0) scale(1); opacity: 1; }
+    100% { transform: translate(-50%, -12px) scale(0.94); opacity: 0; }
 }

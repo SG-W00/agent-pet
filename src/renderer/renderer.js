@@ -29,6 +29,11 @@ const sessionDetailsList = document.getElementById("session-details-list");
 const sessionDetailsSubtitle = document.getElementById("session-details-subtitle");
 const sessionSummary = document.getElementById("session-summary");
 const clearFinishedButton = document.getElementById("clear-finished-sessions");
+const woodenFishScene = document.getElementById("wooden-fish-scene");
+const meritToast = document.getElementById("merit-toast");
+const woodenFishSound = document.getElementById("wooden-fish-sound");
+const clickSpeedLabel = document.getElementById("click-speed-label");
+const dailyMeritSummary = document.getElementById("daily-merit-summary");
 
 let latestSnapshot = { state: "idle", active: null, sessions: [] };
 let typingActive = false;
@@ -40,8 +45,20 @@ let positionAdjusting = false;
 let sessionDetailsOpen = false;
 let animationSettings = { style: "classic", hoverEnabled: true, mascotUrl: null, hoverFrameUrls: [], hoverFrameMs: 110 };
 let hoverTimer = null;
+let woodenFishTimer = null;
+let meritCount = 0;
+let lastWoodenFishHitAt = 0;
+let dailyMeritSummaryTimer = null;
 const defaultMascotUrl = mascot.src;
 const HOVER_ACTIONS = ["hop", "wave", "spin", "squash"];
+const DAILY_MERIT_STORAGE_KEY = "agent-pet.daily-merit.v1";
+const WOODEN_FISH_IDLE_MS = 950;
+const CLICK_SPEEDS = Object.freeze([
+    { name: "turbo", maximumInterval: 180, label: "木鱼连击", sound: "咚咚咚！" },
+    { name: "fast", maximumInterval: 360, label: "功德加速", sound: "咚咚！" },
+    { name: "quick", maximumInterval: 700, label: "渐入佳境", sound: "咚！" },
+    { name: "steady", maximumInterval: Number.POSITIVE_INFINITY, label: "静心一击", sound: "咚" }
+]);
 
 function applyState(snapshot)
 {
@@ -171,16 +188,16 @@ function renderSessionDetails()
         updated.textContent = formatUpdatedAt(session.updatedAt);
         footer.append(cwd, updated);
 
-        if (["idle", "completed", "error"].includes(state))
-        {
-            const dismiss = document.createElement("button");
-            dismiss.type = "button";
-            dismiss.className = "session-dismiss";
-            dismiss.textContent = "关闭";
-            dismiss.title = "只移除桌宠中的会话记录，不会终止 Agent";
-            dismiss.addEventListener("click", () => window.agentPet.dismissSession(session.id));
-            footer.appendChild(dismiss);
-        }
+        const dismissible = ["idle", "completed", "error"].includes(state);
+        const dismiss = document.createElement("button");
+        dismiss.type = "button";
+        dismiss.className = dismissible ? "session-dismiss" : "session-dismiss session-force-dismiss";
+        dismiss.textContent = dismissible ? "关闭" : "强制关闭";
+        dismiss.title = dismissible
+            ? "只移除桌宠中的会话记录，不会终止 Agent"
+            : "强制移除状态和待审批提示，不会终止 Agent";
+        dismiss.addEventListener("click", () => window.agentPet.dismissSession(session.id, !dismissible));
+        footer.appendChild(dismiss);
 
         card.appendChild(footer);
         sessionDetailsList.appendChild(card);
@@ -354,6 +371,112 @@ function applyResourceUsage(snapshot)
     resourceMemory.textContent = `${latestResources.memoryPercent ?? 0}%`;
     resourceNetwork.textContent = `↓ ${formatRate(latestResources.download)} ↑ ${formatRate(latestResources.upload)}`;
 }
+function localDateKey(date = new Date())
+{
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+}
+
+function readDailyMerit()
+{
+    const today = localDateKey();
+    try
+    {
+        const stored = JSON.parse(localStorage.getItem(DAILY_MERIT_STORAGE_KEY) || "null");
+        if (stored && today === stored.date && Number.isSafeInteger(stored.count) && 0 <= stored.count)
+        {
+            return stored;
+        }
+    }
+    catch (_error)
+    {
+        // Ignore malformed local-only data and start a fresh day.
+    }
+    return { date: today, count: 0 };
+}
+
+function writeDailyMerit(dailyMerit)
+{
+    try
+    {
+        localStorage.setItem(DAILY_MERIT_STORAGE_KEY, JSON.stringify(dailyMerit));
+    }
+    catch (_error)
+    {
+        // The click animation still works if local storage is unavailable.
+    }
+}
+
+function showDailyMerit(dailyMerit)
+{
+    dailyMeritSummary.textContent = `今日功德 ${dailyMerit.count}`;
+    dailyMeritSummary.classList.remove("is-visible");
+    void dailyMeritSummary.offsetWidth;
+    dailyMeritSummary.classList.add("is-visible");
+    if (dailyMeritSummaryTimer)
+    {
+        clearTimeout(dailyMeritSummaryTimer);
+    }
+    dailyMeritSummaryTimer = setTimeout(() => {
+        dailyMeritSummary.classList.remove("is-visible");
+        dailyMeritSummaryTimer = null;
+    }, 1900);
+}
+
+function clickSpeedFor(interval)
+{
+    return CLICK_SPEEDS.find((speed) => interval <= speed.maximumInterval);
+}
+
+function playWoodenFishHit(clientX, clientY)
+{
+    const now = Date.now();
+    const interval = 0 === lastWoodenFishHitAt ? Number.POSITIVE_INFINITY : now - lastWoodenFishHitAt;
+    const speed = clickSpeedFor(interval);
+    const stageBounds = document.getElementById("pet-stage").getBoundingClientRect();
+    const localX = Math.max(54, Math.min(clientX - stageBounds.left, stageBounds.width - 54));
+    const localY = Math.max(48, Math.min(clientY - stageBounds.top, stageBounds.height - 48));
+    const dailyMerit = readDailyMerit();
+
+    lastWoodenFishHitAt = now;
+    dailyMerit.count++;
+    writeDailyMerit(dailyMerit);
+    meritCount++;
+    meritToast.textContent = "功德 +1";
+    meritToast.title = `本轮功德 ${meritCount}`;
+    woodenFishSound.textContent = speed.sound;
+    clickSpeedLabel.textContent = speed.label;
+    woodenFishScene.dataset.meritCount = String(meritCount);
+    woodenFishScene.dataset.speed = speed.name;
+    woodenFishScene.dataset.dailyMerit = String(dailyMerit.count);
+    woodenFishScene.style.left = `${localX}px`;
+    woodenFishScene.style.top = `${localY}px`;
+    dailyMeritSummary.classList.remove("is-visible");
+
+    if (woodenFishTimer)
+    {
+        clearTimeout(woodenFishTimer);
+    }
+    if (dailyMeritSummaryTimer)
+    {
+        clearTimeout(dailyMeritSummaryTimer);
+        dailyMeritSummaryTimer = null;
+    }
+    woodenFishScene.classList.remove("is-hitting");
+    void woodenFishScene.offsetWidth;
+    woodenFishScene.classList.add("is-hitting");
+    document.body.classList.add("is-wooden-fish-hit");
+    woodenFishTimer = setTimeout(() => {
+        woodenFishScene.classList.remove("is-hitting");
+        document.body.classList.remove("is-wooden-fish-hit");
+        woodenFishTimer = null;
+        lastWoodenFishHitAt = 0;
+        showDailyMerit(readDailyMerit());
+    }, WOODEN_FISH_IDLE_MS);
+}
+
 function submitApproval(decision)
 {
     if (approvalRequest)
@@ -392,7 +515,11 @@ mascot.addEventListener("mouseenter", playRandomHoverAnimation);
 // 通过 IPC 手动移动窗口，同时保留 mouseenter 悬停动画。
 (function initManualDrag()
 {
+    const dragThreshold = 6;
     let isDragging = false;
+    let hasMoved = false;
+    let pointerStartX = 0;
+    let pointerStartY = 0;
     let dragStartX = 0;
     let dragStartY = 0;
 
@@ -403,6 +530,9 @@ mascot.addEventListener("mouseenter", playRandomHoverAnimation);
             return;
         }
         isDragging = true;
+        hasMoved = false;
+        pointerStartX = event.screenX;
+        pointerStartY = event.screenY;
         dragStartX = event.screenX;
         dragStartY = event.screenY;
         event.preventDefault();
@@ -414,6 +544,16 @@ mascot.addEventListener("mouseenter", playRandomHoverAnimation);
         {
             return;
         }
+
+        if (!hasMoved && dragThreshold <= Math.hypot(event.screenX - pointerStartX, event.screenY - pointerStartY))
+        {
+            hasMoved = true;
+        }
+        if (!hasMoved)
+        {
+            return;
+        }
+
         const dx = event.screenX - dragStartX;
         const dy = event.screenY - dragStartY;
         if (dx || dy)
@@ -424,9 +564,17 @@ mascot.addEventListener("mouseenter", playRandomHoverAnimation);
         }
     });
 
-    document.addEventListener("mouseup", () =>
+    document.addEventListener("mouseup", (event) =>
     {
+        if (!isDragging || 0 !== event.button)
+        {
+            return;
+        }
         isDragging = false;
+        if (!hasMoved)
+        {
+            playWoodenFishHit(event.clientX, event.clientY);
+        }
     });
 })();
 sessionSummary.addEventListener("click", () => setSessionDetails(!sessionDetailsOpen));

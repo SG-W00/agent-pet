@@ -39,6 +39,16 @@ test("completed state returns to idle after its display lifetime", () => {
     assert.equal(effectiveState(session, now), "idle");
 });
 
+test("stale input requests return to idle so closed sessions can be cleaned", () => {
+    const now = Date.now();
+    const session = {
+        state: "needs_input",
+        updatedAt: new Date(now - (6 * 60 * 60 * 1000) - 1).toISOString()
+    };
+
+    assert.equal(effectiveState(session, now), "idle");
+});
+
 test("maps Codex and Claude lifecycle events", () => {
     assert.equal(normalizeEvent("UserPromptSubmit", {}), "running");
     assert.equal(normalizeEvent("PermissionRequest", {}), "needs_input");
@@ -85,6 +95,8 @@ test("finished sessions can be removed without touching active sessions", () => 
         assert.equal(fs.existsSync(path.join(directory, "done.json")), false);
         assert.equal(fs.existsSync(path.join(directory, "active.json")), true);
         assert.equal(fs.existsSync(path.join(directory, "input.json")), true);
+        assert.equal(store.remove("active"), true);
+        assert.equal(fs.existsSync(path.join(directory, "active.json")), false);
     }
     finally
     {

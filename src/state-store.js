@@ -14,7 +14,7 @@ const STATE_PRIORITY = Object.freeze({
 
 const COMPLETED_LIFETIME_MS = 15000;
 const ERROR_LIFETIME_MS = 60000;
-const RUNNING_STALE_MS = 6 * 60 * 60 * 1000;
+const ACTIVE_STALE_MS = 6 * 60 * 60 * 1000;
 const SAFE_SESSION_ID = /^[A-Za-z0-9._-]{1,120}$/;
 const DISMISSIBLE_STATES = new Set(["idle", "completed", "error"]);
 
@@ -33,7 +33,7 @@ function effectiveState(session, now = Date.now())
         return "idle";
     }
 
-    if ("running" === session.state && age > RUNNING_STALE_MS)
+    if (["running", "needs_input"].includes(session.state) && age > ACTIVE_STALE_MS)
     {
         return "idle";
     }
