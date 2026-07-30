@@ -769,15 +769,15 @@ body.is-position-adjusting #speech-bubble {
 #session-details-close {
     position: absolute;
     z-index: 26;
-    right: 8px;
-    top: 8px;
+    right: 4px;
+    top: 4px;
     width: 28px;
     height: 28px;
     padding: 0;
-    border: 0;
+    border: 2px solid #2bc4e8;
     border-radius: 50%;
     color: #e5ebf5;
-    background: rgba(89, 105, 133, 0.55);
+    background: rgba(20, 28, 45, 0.96);
     cursor: pointer;
     font-size: 19px;
     -webkit-app-region: no-drag;
