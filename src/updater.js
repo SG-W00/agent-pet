@@ -216,13 +216,59 @@ class Updater extends EventEmitter
             return false;
         }
 
-        const workerSrc = path.join(__dirname, "updater-worker.js");
-        const workerDest = path.join(this.tempDir, "updater-worker.js");
+        const pid = process.pid;
+        const oldExe = portableExe;
+        const newExe = this.destPath;
+
+        // 生成 .bat 批处理更新脚本 — 零依赖，纯 Windows cmd 实现
+        // 参数通过 %1 %2 %3 %4 传入，避免路径嵌入时的转义问题
+        const batContent = [
+            "@echo off",
+            "setlocal enabledelayedexpansion",
+            "",
+            "set \"PID=%~1\"",
+            "set \"OLD_EXE=%~2\"",
+            "set \"NEW_EXE=%~3\"",
+            "set \"TEMP_DIR=%~4\"",
+            "set \"ERROR_LOG=%TEMP_DIR%\\update-error.log\"",
+            "",
+            "rem 计算备份路径（与 OLD_EXE 同目录）",
+            "for %%I in (\"%OLD_EXE%\") do set \"BACKUP=%%~dpIAgentPet.bak\"",
+            "",
+            ":WAIT",
+            "tasklist /FI \"PID eq %PID%\" 2>nul | findstr /R /C:\"%PID%\" >nul 2>nul",
+            "if not errorlevel 1 (",
+            "    timeout /t 1 /nobreak >nul",
+            "    goto WAIT",
+            ")",
+            "",
+            "rem 父进程已退出，执行文件交换",
+            "ren \"%OLD_EXE%\" \"AgentPet.bak\" 2>nul",
+            "if exist \"%BACKUP%\" (",
+            "    copy /Y \"%NEW_EXE%\" \"%OLD_EXE%\" >nul 2>nul",
+            "    if errorlevel 1 (",
+            "        echo [%date% %time%] copy failed >> \"%ERROR_LOG%\"",
+            "        ren \"%BACKUP%\" \"%~nx2\" 2>nul",
+            "        exit /b 1",
+            "    )",
+            "    del \"%BACKUP%\" 2>nul",
+            ") else (",
+            "    echo [%date% %time%] rename failed >> \"%ERROR_LOG%\"",
+            "    exit /b 1",
+            ")",
+            "",
+            "rem 启动新版本",
+            "start \"\" \"%OLD_EXE%\"",
+            "",
+            "rem 清理",
+            "del \"%NEW_EXE%\" 2>nul",
+            "del \"%~f0\" 2>nul"
+        ].join("\r\n");
+
+        const batPath = path.join(this.tempDir, "update-worker.bat");
         try
         {
-            // worker 可能被打包在 asar 中，需要复制出来运行
-            const workerContent = fs.readFileSync(workerSrc);
-            fs.writeFileSync(workerDest, workerContent);
+            fs.writeFileSync(batPath, batContent);
         }
         catch (err)
         {
@@ -230,26 +276,24 @@ class Updater extends EventEmitter
             return false;
         }
 
-        const manifest =
+        try
         {
-            pid: process.pid,
-            oldExe: portableExe,
-            newExe: this.destPath,
-            tempDir: this.tempDir
-        };
-        const manifestPath = path.join(this.tempDir, "update-manifest.json");
-        fs.writeFileSync(manifestPath, JSON.stringify(manifest));
-
-        const child = require("node:child_process").spawn(
-            process.execPath,
-            [workerDest, manifestPath],
-            {
-                detached: true,
-                stdio: "ignore",
-                env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" }
-            }
-        );
-        child.unref();
+            const child = require("node:child_process").spawn(
+                "cmd.exe",
+                ["/c", batPath, String(pid), oldExe, newExe, this.tempDir],
+                {
+                    detached: true,
+                    stdio: "ignore",
+                    windowsHide: true
+                }
+            );
+            child.unref();
+        }
+        catch (err)
+        {
+            this._setState("error", { error: "无法启动更新程序：" + err.message });
+            return false;
+        }
 
         return true;
     }
