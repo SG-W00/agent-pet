@@ -22,6 +22,7 @@ const { importImageFiles } = require("./custom-assets");
 const { ResourceMonitor } = require("./resource-monitor");
 const { SettingsStore } = require("./settings-store");
 const { StateStore } = require("./state-store");
+const { createTrayBitmap, TRAY_ICON_SIZE } = require("./tray-icon");
 
 let mainWindow = null;
 let tray = null;
@@ -32,6 +33,7 @@ let resourceMonitor = null;
 let settingsStore = null;
 let settings = null;
 let latestApproval = null;
+let latestApprovals = [];
 let latestSnapshot = { state: "idle", sessions: [], counts: {} };
 let typingActive = false;
 let latestResources = null;
@@ -46,14 +48,6 @@ let suppressMoveSaveUntil = 0;
 const BASE_SIZES = Object.freeze({
     pet: { width: 300, height: 350 },
     traffic: { width: 104, height: 236 }
-});
-
-const STATUS_COLORS = Object.freeze({
-    idle: "#758195",
-    running: "#2bc4e8",
-    completed: "#50d890",
-    needs_input: "#ffc857",
-    error: "#ff5d73"
 });
 
 function localAppDataDirectory()
@@ -100,14 +94,11 @@ function loginExecutable()
 
 function createTrayImage(state)
 {
-    const color = STATUS_COLORS[state] || STATUS_COLORS.idle;
-    const svg = [
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"32\" height=\"32\">",
-        "<circle cx=\"16\" cy=\"16\" r=\"13\" fill=\"#172033\" stroke=\"#ffffff\" stroke-width=\"2\"/>",
-        `<circle cx="16" cy="16" r="8" fill="${color}"/>`,
-        "</svg>"
-    ].join("");
-    return nativeImage.createFromDataURL(`data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`);
+    return nativeImage.createFromBitmap(createTrayBitmap(state), {
+        width: TRAY_ICON_SIZE,
+        height: TRAY_ICON_SIZE,
+        scaleFactor: 1
+    });
 }
 
 function currentBaseSize()
@@ -296,18 +287,29 @@ function setSessionDetailsOpen(open)
     }
     rebuildTrayMenu();
 }
-function decideApproval(decision)
+function decideApproval(decision, requestId = latestApproval && latestApproval.id)
 {
-    if (!latestApproval || !approvalStore)
+    if (!requestId || !approvalStore)
     {
         return false;
     }
 
-    const accepted = approvalStore.decide(latestApproval.id, decision);
+    const request = latestApprovals.find((item) => item.id === requestId);
+    if (!request)
+    {
+        return false;
+    }
+
+    const accepted = approvalStore.decide(request.id, decision);
     if (accepted)
     {
-        latestApproval = null;
-        mainWindow.webContents.send("approval-request", null);
+        latestApprovals = latestApprovals.filter((item) => item.id !== request.id);
+        latestApproval = latestApprovals[0] || null;
+        if (mainWindow && !mainWindow.isDestroyed())
+        {
+            mainWindow.webContents.send("approval-request", latestApproval);
+            mainWindow.webContents.send("approval-requests", latestApprovals);
+        }
         applyInteractionMode();
         rebuildTrayMenu();
     }
@@ -316,7 +318,8 @@ function decideApproval(decision)
 
 function publishApprovals(requests)
 {
-    latestApproval = requests[0] || null;
+    latestApprovals = Array.isArray(requests) ? requests : [];
+    latestApproval = latestApprovals[0] || null;
     if (mainWindow && !mainWindow.isDestroyed())
     {
         if (latestApproval)
@@ -324,11 +327,22 @@ function publishApprovals(requests)
             mainWindow.show();
         }
         mainWindow.webContents.send("approval-request", latestApproval);
+        mainWindow.webContents.send("approval-requests", latestApprovals);
         mainWindow.webContents.send("resource-usage", latestResources);
         mainWindow.webContents.send("position-adjust-mode", positionAdjusting);
         applyInteractionMode();
     }
     rebuildTrayMenu();
+}
+
+function dismissSession(sessionId)
+{
+    const session = latestSnapshot.sessions.find((item) => item.id === sessionId);
+    if (!session || !["idle", "completed", "error"].includes(session.state))
+    {
+        return false;
+    }
+    return stateStore.remove(sessionId);
 }
 
 function formatSetupResult(result)
@@ -596,8 +610,8 @@ function rebuildTrayMenu()
             click: () => shell.openPath(stateDirectory())
         },
         {
-            label: "清除会话状态",
-            click: () => stateStore.clear()
+            label: "清理已结束会话",
+            click: () => stateStore.clearFinished()
         },
         {
             label: "开机启动",
@@ -646,6 +660,7 @@ function createWindow()
         mainWindow.webContents.send("agent-state", latestSnapshot);
         mainWindow.webContents.send("typing-activity", typingActive);
         mainWindow.webContents.send("approval-request", latestApproval);
+        mainWindow.webContents.send("approval-requests", latestApprovals);
         mainWindow.webContents.send("resource-usage", latestResources);
         mainWindow.webContents.send("position-adjust-mode", positionAdjusting);
     });
@@ -757,14 +772,25 @@ else
             mainWindow.hide();
             rebuildTrayMenu();
         });
-        ipcMain.on("approval-decision", (_event, decision) => decideApproval(decision));
+        ipcMain.on("approval-decision", (_event, payload) => {
+            if (payload && "object" === typeof payload)
+            {
+                decideApproval(payload.decision, payload.requestId);
+            }
+            else
+            {
+                decideApproval(payload);
+            }
+        });
+        ipcMain.on("dismiss-session", (_event, sessionId) => dismissSession(sessionId));
+        ipcMain.on("clear-finished-sessions", () => stateStore.clearFinished());
         ipcMain.on("session-details-state", (_event, open) => {
             sessionDetailsOpen = true === open;
             applyInteractionMode();
             rebuildTrayMenu();
         });
         ipcMain.on("window-drag", (_event, dx, dy) => {
-            if (mainWindow)
+            if (mainWindow && Number.isFinite(dx) && Number.isFinite(dy))
             {
                 const [x, y] = mainWindow.getPosition();
                 mainWindow.setPosition(x + dx, y + dy);

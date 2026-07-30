@@ -65,6 +65,15 @@ app.whenReady().then(async () => {
             { id: "codex-2", provider: "Codex", source: "WSL · Ubuntu", state: "needs_input", event: "PermissionRequest", message: "等待授权：shell_command", cwd: "/home/tester/web", updatedAt: now }
         ];
         window.webContents.send("agent-state", { state: "needs_input", active: sessions[2], sessions, counts: { running: 1, completed: 1, needs_input: 1 } });
+        window.webContents.send("approval-requests", [{
+            id: "visual-session-approval",
+            provider: "codex",
+            sessionId: "codex-2",
+            toolName: "shell_command",
+            summary: "npm run build -- --safe-mode",
+            createdAt: now,
+            expiresAt: new Date(Date.now() + 60000).toISOString()
+        }]);
         window.webContents.send("show-session-details", true);
     }    else if ("approval" === scenario)
     {
@@ -77,6 +86,17 @@ app.whenReady().then(async () => {
     }
 
     await new Promise((resolve) => setTimeout(resolve, "hover" === scenario ? 380 : 900));
+    if ("sessions" === scenario)
+    {
+        const ui = await window.webContents.executeJavaScript(`JSON.stringify({
+            cards: document.querySelectorAll(".session-card").length,
+            inlineApprovals: document.querySelectorAll(".session-inline-approval").length,
+            allowButtons: document.querySelectorAll(".session-allow").length,
+            dismissButtons: document.querySelectorAll(".session-dismiss").length,
+            clearButtonVisible: !document.getElementById("clear-finished-sessions").disabled
+        })`);
+        process.stdout.write(`UI check ${ui}\n`);
+    }
     const image = await window.webContents.capturePage();
     const outputDirectory = path.join(__dirname, "..", "artifacts");
     fs.mkdirSync(outputDirectory, { recursive: true });

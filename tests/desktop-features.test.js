@@ -11,6 +11,7 @@ const { normalizeSettings } = require("../src/settings-store");
 const { windowsPathToWsl } = require("../src/ai-setup");
 const { cpuPercent } = require("../src/resource-monitor");
 const { importImageFiles, validateImageFile } = require("../src/custom-assets");
+const { createTrayBitmap, STATUS_RGB, TRAY_ICON_SIZE } = require("../src/tray-icon");
 
 test("keyboard activity emits only active and idle transitions", () => {
     const events = [];
@@ -143,4 +144,15 @@ test("custom animation assets are copied locally in natural filename order", () 
     {
         fs.rmSync(directory, { recursive: true, force: true });
     }
+});
+test("tray bitmap has transparent corners and a visible state-colored center", () => {
+    const bitmap = createTrayBitmap("running");
+    const centerOffset = ((TRAY_ICON_SIZE / 2) * TRAY_ICON_SIZE + (TRAY_ICON_SIZE / 2)) * 4;
+    assert.equal(bitmap.length, TRAY_ICON_SIZE * TRAY_ICON_SIZE * 4);
+    assert.equal(bitmap[3], 0);
+    assert.equal(bitmap[centerOffset + 3], 255);
+    assert.deepEqual(
+        [bitmap[centerOffset + 2], bitmap[centerOffset + 1], bitmap[centerOffset]],
+        STATUS_RGB.running
+    );
 });

@@ -15,6 +15,8 @@ const STATE_PRIORITY = Object.freeze({
 const COMPLETED_LIFETIME_MS = 15000;
 const ERROR_LIFETIME_MS = 60000;
 const RUNNING_STALE_MS = 6 * 60 * 60 * 1000;
+const SAFE_SESSION_ID = /^[A-Za-z0-9._-]{1,120}$/;
+const DISMISSIBLE_STATES = new Set(["idle", "completed", "error"]);
 
 function effectiveState(session, now = Date.now())
 {
@@ -136,6 +138,56 @@ class StateStore extends EventEmitter
             }
         }
         this.refresh();
+    }
+
+    remove(sessionId)
+    {
+        if (!SAFE_SESSION_ID.test(String(sessionId || "")))
+        {
+            return false;
+        }
+
+        const filePath = path.join(this.stateDirectory, `${sessionId}.json`);
+        if (!fs.existsSync(filePath))
+        {
+            return false;
+        }
+
+        fs.rmSync(filePath, { force: true });
+        this.refresh();
+        return true;
+    }
+
+    clearFinished(now = Date.now())
+    {
+        fs.mkdirSync(this.stateDirectory, { recursive: true });
+        let removed = 0;
+
+        for (const fileName of fs.readdirSync(this.stateDirectory))
+        {
+            if (!fileName.endsWith(".json"))
+            {
+                continue;
+            }
+
+            const filePath = path.join(this.stateDirectory, fileName);
+            try
+            {
+                const session = JSON.parse(fs.readFileSync(filePath, "utf8"));
+                if (session && DISMISSIBLE_STATES.has(effectiveState(session, now)))
+                {
+                    fs.rmSync(filePath, { force: true });
+                    removed++;
+                }
+            }
+            catch (_error)
+            {
+                // Keep unreadable files so diagnostics remain available.
+            }
+        }
+
+        this.refresh();
+        return removed;
     }
 
     stop()

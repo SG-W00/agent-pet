@@ -2,7 +2,10 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { effectiveState, selectAggregate } = require("../src/state-store");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+const { StateStore, effectiveState, selectAggregate } = require("../src/state-store");
 const { messageFor, normalizeEvent, shouldPreserveFinalState, windowsPathToWsl } = require("../bridge/agent-pet-bridge");
 
 test("aggregate chooses the highest-priority active state", () => {
@@ -67,4 +70,24 @@ test("converts a Windows local app data path to WSL", () => {
 test("submitted prompts become concise session progress summaries", () => {
     assert.equal(messageFor("running", { prompt: "检查   当前工程的构建错误" }), "任务：检查 当前工程的构建错误");
     assert.ok(messageFor("running", { prompt: "x".repeat(400) }).length <= 403);
+});
+test("finished sessions can be removed without touching active sessions", () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "agent-pet-state-"));
+    const now = Date.now();
+    try
+    {
+        fs.writeFileSync(path.join(directory, "done.json"), JSON.stringify({ id: "done", state: "completed", updatedAt: new Date(now).toISOString() }));
+        fs.writeFileSync(path.join(directory, "active.json"), JSON.stringify({ id: "active", state: "running", updatedAt: new Date(now).toISOString() }));
+        fs.writeFileSync(path.join(directory, "input.json"), JSON.stringify({ id: "input", state: "needs_input", updatedAt: new Date(now).toISOString() }));
+        const store = new StateStore(directory);
+        assert.equal(store.remove("../escape"), false);
+        assert.equal(store.clearFinished(now), 1);
+        assert.equal(fs.existsSync(path.join(directory, "done.json")), false);
+        assert.equal(fs.existsSync(path.join(directory, "active.json")), true);
+        assert.equal(fs.existsSync(path.join(directory, "input.json")), true);
+    }
+    finally
+    {
+        fs.rmSync(directory, { recursive: true, force: true });
+    }
 });

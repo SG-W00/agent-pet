@@ -28,10 +28,12 @@ const sessionDetailsPanel = document.getElementById("session-details-panel");
 const sessionDetailsList = document.getElementById("session-details-list");
 const sessionDetailsSubtitle = document.getElementById("session-details-subtitle");
 const sessionSummary = document.getElementById("session-summary");
+const clearFinishedButton = document.getElementById("clear-finished-sessions");
 
 let latestSnapshot = { state: "idle", active: null, sessions: [] };
 let typingActive = false;
 let approvalRequest = null;
+let approvalRequests = [];
 let latestResources = null;
 let windowSettings = { resources: { enabled: true, cpu: true, gpu: true, memory: true, network: true } };
 let positionAdjusting = false;
@@ -90,7 +92,9 @@ function formatUpdatedAt(value)
 function renderSessionDetails()
 {
     const sessions = Array.isArray(latestSnapshot.sessions) ? latestSnapshot.sessions : [];
+    const dismissibleCount = sessions.filter((session) => ["idle", "completed", "error"].includes(session.state)).length;
     sessionDetailsSubtitle.textContent = `${sessions.length} 个会话 · 按状态优先排列`;
+    clearFinishedButton.disabled = 0 === dismissibleCount;
     sessionDetailsList.replaceChildren();
 
     if (0 === sessions.length)
@@ -123,6 +127,41 @@ function renderSessionDetails()
         const message = document.createElement("p");
         message.textContent = session.message || STATE_PRESENTATION[state].fallback;
 
+        card.append(header, source, message);
+
+        const request = approvalRequests.find((item) => item.sessionId === session.id);
+        if (request)
+        {
+            const approval = document.createElement("section");
+            approval.className = "session-inline-approval";
+            const operation = document.createElement("code");
+            operation.textContent = request.toolName || "待审批操作";
+            const summary = document.createElement("p");
+            summary.textContent = request.summary || "请核对操作内容后选择。";
+            const actions = document.createElement("div");
+            actions.className = "session-actions";
+            const allow = document.createElement("button");
+            allow.type = "button";
+            allow.className = "session-allow";
+            allow.textContent = "允许";
+            allow.addEventListener("click", () => window.agentPet.decideApproval("allow", request.id));
+            const deny = document.createElement("button");
+            deny.type = "button";
+            deny.className = "session-deny";
+            deny.textContent = "拒绝";
+            deny.addEventListener("click", () => window.agentPet.decideApproval("deny", request.id));
+            actions.append(allow, deny);
+            approval.append(operation, summary, actions);
+            card.appendChild(approval);
+        }
+        else if ("needs_input" === state)
+        {
+            const notice = document.createElement("div");
+            notice.className = "session-input-notice";
+            notice.textContent = "此请求需要文本输入，请回到原 Codex / Claude Code 会话继续。当前 hooks 无法安全代发任意文本。";
+            card.appendChild(notice);
+        }
+
         const footer = document.createElement("footer");
         const cwd = document.createElement("code");
         cwd.textContent = session.cwd || "未知目录";
@@ -132,7 +171,18 @@ function renderSessionDetails()
         updated.textContent = formatUpdatedAt(session.updatedAt);
         footer.append(cwd, updated);
 
-        card.append(header, source, message, footer);
+        if (["idle", "completed", "error"].includes(state))
+        {
+            const dismiss = document.createElement("button");
+            dismiss.type = "button";
+            dismiss.className = "session-dismiss";
+            dismiss.textContent = "关闭";
+            dismiss.title = "只移除桌宠中的会话记录，不会终止 Agent";
+            dismiss.addEventListener("click", () => window.agentPet.dismissSession(session.id));
+            footer.appendChild(dismiss);
+        }
+
+        card.appendChild(footer);
         sessionDetailsList.appendChild(card);
     }
 }
@@ -146,6 +196,7 @@ function setSessionDetails(open, notify = true)
     {
         renderSessionDetails();
     }
+    applyApproval(approvalRequest);
     if (notify)
     {
         window.agentPet.setSessionDetailsOpen(sessionDetailsOpen);
@@ -154,11 +205,11 @@ function setSessionDetails(open, notify = true)
 function applyApproval(request)
 {
     approvalRequest = request || null;
-    const hasApproval = null !== approvalRequest;
+    const showStandalone = null !== approvalRequest && !sessionDetailsOpen;
 
-    document.body.classList.toggle("has-approval", hasApproval);
-    approvalPanel.hidden = !hasApproval;
-    if (!hasApproval)
+    document.body.classList.toggle("has-approval", showStandalone);
+    approvalPanel.hidden = !showStandalone;
+    if (!approvalRequest)
     {
         return;
     }
@@ -166,6 +217,15 @@ function applyApproval(request)
     approvalProvider.textContent = `${String(approvalRequest.provider || "Agent").toUpperCase()} · 需要授权`;
     approvalTool.textContent = approvalRequest.toolName || "未知操作";
     approvalSummary.textContent = approvalRequest.summary || "请核对操作内容后选择。";
+}
+
+function applyApprovalRequests(requests)
+{
+    approvalRequests = Array.isArray(requests) ? requests : [];
+    if (sessionDetailsOpen)
+    {
+        renderSessionDetails();
+    }
 }
 
 function cancelHoverAnimation()
@@ -298,7 +358,7 @@ function submitApproval(decision)
 {
     if (approvalRequest)
     {
-        window.agentPet.decideApproval(decision);
+        window.agentPet.decideApproval(decision, approvalRequest.id);
     }
 }
 
@@ -308,6 +368,7 @@ window.agentPet.onTypingActivity((active) => {
     applyState(latestSnapshot);
 });
 window.agentPet.onApprovalRequest(applyApproval);
+window.agentPet.onApprovalRequests(applyApprovalRequests);
 window.agentPet.onDisplayMode((mode) => {
     document.body.classList.toggle("mode-pet", "pet" === mode);
     document.body.classList.toggle("mode-traffic", "traffic" === mode);
@@ -376,6 +437,8 @@ sessionSummary.addEventListener("keydown", (event) => {
         setSessionDetails(!sessionDetailsOpen);
     }
 });
-document.getElementById("session-details-close").addEventListener("click", () => setSessionDetails(false));document.getElementById("approval-allow").addEventListener("click", () => submitApproval("allow"));
+document.getElementById("session-details-close").addEventListener("click", () => setSessionDetails(false));
+clearFinishedButton.addEventListener("click", () => window.agentPet.clearFinishedSessions());
+document.getElementById("approval-allow").addEventListener("click", () => submitApproval("allow"));
 document.getElementById("approval-deny").addEventListener("click", () => submitApproval("deny"));
 document.getElementById("hide-button").addEventListener("click", () => window.agentPet.hide());
