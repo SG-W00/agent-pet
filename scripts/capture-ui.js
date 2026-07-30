@@ -7,11 +7,14 @@ const { app, BrowserWindow } = require("electron");
 const state = process.argv[2] || "running";
 const mode = process.argv[3] || "pet";
 const scenario = process.argv[4] || "state";
+const requestedScale = Number(process.env.AGENT_PET_CAPTURE_SCALE || 1);
+const uiScale = [0.75, 1, 1.25, 1.5].includes(requestedScale) ? requestedScale : 1;
+const baseSize = "traffic" === mode ? { width: 104, height: 236 } : { width: 300, height: 350 };
 
 app.whenReady().then(async () => {
     const window = new BrowserWindow({
-        width: "traffic" === mode ? 104 : 300,
-        height: "traffic" === mode ? 236 : 350,
+        width: Math.round(baseSize.width * uiScale),
+        height: Math.round(baseSize.height * uiScale),
         show: false,
         transparent: true,
         frame: false,
@@ -38,8 +41,9 @@ app.whenReady().then(async () => {
     });
     window.webContents.send("window-settings", {
         clickThrough: false,
+        scale: uiScale,
         resources: { enabled: true, cpu: true, gpu: true, memory: true, network: true },
-        animation: { style: "playful", hoverEnabled: true, mascotUrl: null, hoverFrameUrls: [], hoverFrameMs: 110 }
+        animation: { style: "scale" === scenario ? "still" : "playful", hoverEnabled: true, mascotUrl: null, hoverFrameUrls: [], hoverFrameMs: 110 }
     });
     window.webContents.send("resource-usage", {
         cpu: 28,
@@ -141,10 +145,29 @@ app.whenReady().then(async () => {
         })`);
         process.stdout.write(`UI check ${ui}\n`);
     }
+    if ("scale" === scenario)
+    {
+        const layout = await window.webContents.executeJavaScript(`(() => {
+            const bubble = document.getElementById("speech-bubble").getBoundingClientRect();
+            const mascot = document.getElementById("mascot").getBoundingClientRect();
+            const scale = Number(getComputedStyle(document.documentElement).getPropertyValue("--ui-scale"));
+            const gap = mascot.top - bubble.bottom;
+            return JSON.stringify({
+                viewport: { width: innerWidth, height: innerHeight },
+                scale,
+                bubbleBottom: bubble.bottom,
+                mascotTop: mascot.top,
+                gap,
+                normalizedGap: gap / scale
+            });
+        })()`);
+        process.stdout.write(`Scale layout ${layout}\n`);
+    }
     const image = await window.webContents.capturePage();
     const outputDirectory = path.join(__dirname, "..", "artifacts");
     fs.mkdirSync(outputDirectory, { recursive: true });
-    const outputPath = path.join(outputDirectory, `ui-${mode}-${state}-${scenario}.png`);
+    const scaleSuffix = "scale" === scenario ? `-${uiScale}` : "";
+    const outputPath = path.join(outputDirectory, `ui-${mode}-${state}-${scenario}${scaleSuffix}.png`);
     fs.writeFileSync(outputPath, image.toPNG());
     process.stdout.write(`Captured ${outputPath}\n`);
     app.quit();

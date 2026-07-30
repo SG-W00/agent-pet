@@ -1,5 +1,6 @@
 :root {
     color-scheme: dark;
+    --ui-scale: 1;
     --state-color: #758195;
     --panel: rgba(20, 28, 45, 0.94);
     --text: #f5f7fb;
@@ -22,7 +23,17 @@ body {
 }
 
 body {
+    width: 300px;
+    height: 350px;
     --state-color: #758195;
+    transform: scale(var(--ui-scale));
+    transform-origin: top left;
+    contain: layout paint;
+}
+
+body.mode-traffic {
+    width: 104px;
+    height: 236px;
 }
 
 body.state-running {

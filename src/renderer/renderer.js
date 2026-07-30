@@ -436,8 +436,14 @@ function playWoodenFishHit(clientX, clientY)
     const interval = 0 === lastWoodenFishHitAt ? Number.POSITIVE_INFINITY : now - lastWoodenFishHitAt;
     const speed = clickSpeedFor(interval);
     const stageBounds = document.getElementById("pet-stage").getBoundingClientRect();
-    const localX = Math.max(54, Math.min(clientX - stageBounds.left, stageBounds.width - 54));
-    const localY = Math.max(48, Math.min(clientY - stageBounds.top, stageBounds.height - 48));
+    const computedScale = Number(getComputedStyle(document.documentElement).getPropertyValue("--ui-scale"));
+    const uiScale = 0 < computedScale ? computedScale : 1;
+    const stageWidth = stageBounds.width / uiScale;
+    const stageHeight = stageBounds.height / uiScale;
+    const pointerX = (clientX - stageBounds.left) / uiScale;
+    const pointerY = (clientY - stageBounds.top) / uiScale;
+    const localX = Math.max(54, Math.min(pointerX, stageWidth - 54));
+    const localY = Math.max(48, Math.min(pointerY, stageHeight - 48));
     const dailyMerit = readDailyMerit();
 
     lastWoodenFishHitAt = now;
@@ -497,6 +503,9 @@ window.agentPet.onDisplayMode((mode) => {
     document.body.classList.toggle("mode-traffic", "traffic" === mode);
 });
 window.agentPet.onWindowSettings((settings) => {
+    const requestedScale = Number(settings.scale);
+    const uiScale = [0.75, 1, 1.25, 1.5].includes(requestedScale) ? requestedScale : 1;
+    document.documentElement.style.setProperty("--ui-scale", String(uiScale));
     document.body.classList.toggle("is-click-through", true === settings.clickThrough);
     applyResourceSettings(settings);
     applyAnimationSettings(settings);

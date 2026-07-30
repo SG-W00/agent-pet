@@ -185,7 +185,6 @@ function applyWindowSettings()
     }
 
     const base = currentBaseSize();
-    mainWindow.webContents.setZoomFactor(settings.scale);
     mainWindow.setSize(
         Math.round(base.width * settings.scale),
         Math.round(base.height * settings.scale),
