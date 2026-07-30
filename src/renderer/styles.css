@@ -735,6 +735,7 @@ body.is-position-adjusting #speech-bubble {
     align-items: flex-start;
     justify-content: space-between;
     gap: 8px;
+    -webkit-app-region: drag;
 }
 
 #session-details-panel > header > div {
@@ -764,6 +765,7 @@ body.is-position-adjusting #speech-bubble {
     background: rgba(89, 105, 133, 0.55);
     cursor: pointer;
     font-size: 19px;
+    -webkit-app-region: no-drag;
 }
 
 #session-details-list {
@@ -774,6 +776,7 @@ body.is-position-adjusting #speech-bubble {
     flex-direction: column;
     gap: 8px;
     overflow-y: auto;
+    -webkit-app-region: no-drag;
 }
 
 .session-card {
