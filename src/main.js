@@ -25,7 +25,6 @@ const { ResourceMonitor } = require("./resource-monitor");
 const { SettingsStore } = require("./settings-store");
 const { StateStore } = require("./state-store");
 const { createTrayBitmap, TRAY_ICON_SIZE } = require("./tray-icon");
-const { Updater } = require("./updater");
 
 let mainWindow = null;
 let tray = null;
@@ -47,7 +46,6 @@ let positionAdjusting = false;
 let positionAdjustTimer = null;
 let moveSaveTimer = null;
 let suppressMoveSaveUntil = 0;
-let updater = null;
 
 const BASE_SIZES = Object.freeze({
     pet: { width: 300, height: 350 },
@@ -751,36 +749,6 @@ function rebuildTrayMenu()
             label: "清理已结束会话",
             click: () => stateStore.clearFinished()
         },
-        { type: "separator" },
-        {
-            label: (updater && "checking" === updater.state)
-                ? "检查更新…"
-                : (updater && "available" === updater.state)
-                    ? "发现新版本 " + updater.latestVersion + "，点击下载…"
-                    : (updater && "downloaded" === updater.state)
-                        ? "更新已下载，点击重启安装"
-                        : "检查更新",
-            enabled: !updater || ("checking" !== updater.state && "downloading" !== updater.state),
-            click: () => {
-                if (!updater) return;
-                if ("available" === updater.state)
-                {
-                    updater.download();
-                }
-                else if ("downloaded" === updater.state)
-                {
-                    if (updater.apply())
-                    {
-                        isQuitting = true;
-                        app.quit();
-                    }
-                }
-                else
-                {
-                    updater.check();
-                }
-            }
-        },
         {
             label: "开机启动",
             type: "checkbox",
@@ -932,27 +900,6 @@ else
         syncResourceMonitor();
         registerGlobalShortcuts();
 
-        // 初始化更新器
-        updater = new Updater(app.getVersion());
-        updater.on("state-change", (data) => {
-            if (!mainWindow || mainWindow.isDestroyed()) return;
-            mainWindow.webContents.send("update-state", data);
-            if ("downloaded" === data.state || "available" === data.state || "error" === data.state)
-            {
-                rebuildTrayMenu();
-            }
-        });
-        updater.on("progress", (data) => {
-            if (!mainWindow || mainWindow.isDestroyed()) return;
-            mainWindow.webContents.send("update-progress", data);
-        });
-
-        // 启动后异步检查更新（仅便携版）
-        if (process.env.PORTABLE_EXECUTABLE_FILE)
-        {
-            setImmediate(() => updater.check());
-        }
-
         ipcMain.on("set-display-mode", (_event, mode) => applyDisplayMode(mode));
         ipcMain.on("hide-window", () => {
             mainWindow.hide();
@@ -988,24 +935,6 @@ else
                 mainWindow.setPosition(x + dx, y + dy);
             }
         });
-
-        ipcMain.on("check-update", () => {
-            updater.check();
-        });
-        ipcMain.on("start-update-download", () => {
-            updater.download();
-        });
-        ipcMain.on("apply-update", () => {
-            if (updater.apply())
-            {
-                isQuitting = true;
-                app.quit();
-            }
-        });
-        ipcMain.on("dismiss-update", () => {
-            updater.cancel();
-            rebuildTrayMenu();
-        });
     });
 }
 
@@ -1035,10 +964,6 @@ app.on("before-quit", () => {
     if (resourceMonitor)
     {
         resourceMonitor.stop();
-    }
-    if (updater)
-    {
-        updater.cancel();
     }
 });
 
