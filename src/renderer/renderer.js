@@ -43,7 +43,7 @@ let latestResources = null;
 let windowSettings = { resources: { enabled: true, cpu: true, gpu: true, memory: true, network: true } };
 let positionAdjusting = false;
 let sessionDetailsOpen = false;
-let animationSettings = { style: "classic", hoverEnabled: true, mascotUrl: null, hoverFrameUrls: [], hoverFrameMs: 110 };
+let animationSettings = { style: "classic", hoverEnabled: true, mascotUrl: null, hoverFrameUrls: [], hoverFrameDurations: [], hoverFrameMs: 110 };
 let hoverTimer = null;
 let woodenFishTimer = null;
 let meritCount = 0;
@@ -273,23 +273,41 @@ function playBuiltInHoverAnimation()
 function playCustomHoverFrames()
 {
     const frames = animationSettings.hoverFrameUrls;
+    const durations = animationSettings.hoverFrameDurations;
     let index = 0;
-    mascot.src = frames[index];
     if (1 === frames.length)
     {
+        mascot.src = frames[0];
         hoverTimer = setTimeout(cancelHoverAnimation, 650);
         return;
     }
 
-    hoverTimer = setInterval(() => {
-        index++;
-        if (frames.length <= index)
-        {
-            cancelHoverAnimation();
-            return;
-        }
+    const hasSourceTiming = Array.isArray(durations) && durations.length === frames.length;
+    const averageDuration = hasSourceTiming
+        ? durations.reduce((total, duration) => total + duration, 0) / durations.length
+        : animationSettings.hoverFrameMs;
+    const speedRatio = animationSettings.hoverFrameMs / Math.max(1, averageDuration);
+
+    function showNextFrame()
+    {
         mascot.src = frames[index];
-    }, animationSettings.hoverFrameMs);
+        const sourceDuration = hasSourceTiming ? durations[index] : animationSettings.hoverFrameMs;
+        const frameDuration = Math.max(20, Math.min(1000, Math.round(sourceDuration * speedRatio)));
+        index++;
+        hoverTimer = setTimeout(() => {
+            if (frames.length <= index)
+            {
+                cancelHoverAnimation();
+                return;
+            }
+            showNextFrame();
+        }, frameDuration);
+    }
+
+    if (0 < frames.length)
+    {
+        showNextFrame();
+    }
 }
 
 function playRandomHoverAnimation()

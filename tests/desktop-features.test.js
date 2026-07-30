@@ -52,6 +52,7 @@ test("settings accept only supported size and opacity presets", () => {
             autoExtractMascot: true,
             mascotPath: null,
             hoverFrames: [],
+            hoverFrameDurations: [],
             hoverFrameMs: 110
         },
         resources: {
@@ -122,6 +123,7 @@ test("animation settings support styles, custom images and bounded frame speed",
             autoExtractMascot: false,
             mascotPath: "C:\\pet.png",
             hoverFrames: ["C:\\frame-1.png", "C:\\frame-2.png"],
+            hoverFrameDurations: [45, 90],
             hoverFrameMs: 70
         }
     });
@@ -129,6 +131,7 @@ test("animation settings support styles, custom images and bounded frame speed",
     assert.equal(settings.animation.hoverEnabled, false);
     assert.equal(settings.animation.autoExtractMascot, false);
     assert.equal(settings.animation.hoverFrames.length, 2);
+    assert.deepEqual(settings.animation.hoverFrameDurations, [45, 90]);
     assert.equal(settings.animation.hoverFrameMs, 70);
     assert.equal(normalizeSettings({ animation: { style: "unknown", hoverFrameMs: 1 } }).animation.style, "classic");
 });

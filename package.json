@@ -21,6 +21,10 @@
     "appId": "io.agentpet.desktop",
     "productName": "Agent Pet",
     "asar": true,
+    "asarUnpack": [
+      "**/node_modules/sharp/**/*",
+      "**/node_modules/@img/**/*"
+    ],
     "files": [
       "src/**/*",
       "assets/**/*",
@@ -35,5 +39,9 @@
       ],
       "artifactName": "AgentPet-${version}-portable.${ext}"
     }
+  },
+  "dependencies": {
+    "sharp": "^0.34.5",
+    "upng-js": "^2.1.0"
   }
 }

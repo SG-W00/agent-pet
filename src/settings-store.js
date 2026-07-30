@@ -10,6 +10,7 @@ const DEFAULT_ANIMATION = Object.freeze({
     autoExtractMascot: true,
     mascotPath: null,
     hoverFrames: [],
+    hoverFrameDurations: [],
     hoverFrameMs: 110
 });
 
@@ -50,6 +51,11 @@ function normalizeAnimation(value = {})
     const hoverFrames = Array.isArray(value.hoverFrames)
         ? value.hoverFrames.filter((item) => "string" === typeof item && 0 < item.length).slice(0, 48)
         : [];
+    const hoverFrameDurations = Array.isArray(value.hoverFrameDurations)
+        ? value.hoverFrameDurations
+            .slice(0, hoverFrames.length)
+            .map((item) => Math.max(20, Math.min(1000, Math.round(Number(item) || DEFAULT_ANIMATION.hoverFrameMs))))
+        : [];
 
     return {
         style,
@@ -57,6 +63,7 @@ function normalizeAnimation(value = {})
         autoExtractMascot: false !== value.autoExtractMascot,
         mascotPath: "string" === typeof value.mascotPath && 0 < value.mascotPath.length ? value.mascotPath : null,
         hoverFrames,
+        hoverFrameDurations,
         hoverFrameMs: Number.isFinite(frameMs) && 60 <= frameMs && 500 >= frameMs ? Math.round(frameMs) : DEFAULT_ANIMATION.hoverFrameMs
     };
 }

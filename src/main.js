@@ -20,6 +20,7 @@ const { ApprovalStore } = require("./approval-store");
 const { KeyboardActivityMonitor } = require("./keyboard-activity");
 const { importImageFiles } = require("./custom-assets");
 const { extractForegroundBitmap } = require("./foreground-extractor");
+const { importStickerAnimation } = require("./sticker-importer");
 const { ResourceMonitor } = require("./resource-monitor");
 const { SettingsStore } = require("./settings-store");
 const { StateStore } = require("./state-store");
@@ -495,11 +496,51 @@ async function chooseHoverFrames()
     try
     {
         const hoverFrames = importImageFiles(result.filePaths, customAssetDirectory(), "hover");
-        updateSettings({ animation: { hoverFrames, hoverEnabled: true } });
+        updateSettings({ animation: { hoverFrames, hoverFrameDurations: [], hoverEnabled: true } });
     }
     catch (error)
     {
         dialog.showErrorBox("无法导入悬停动画帧", error.message);
+    }
+}
+async function chooseStickerAnimation()
+{
+    const result = await dialog.showOpenDialog(mainWindow, {
+        title: "选择微信动态表情",
+        properties: ["openFile"],
+        filters: [{ name: "动态表情", extensions: ["gif", "png", "webp"] }]
+    });
+    if (result.canceled)
+    {
+        return;
+    }
+
+    try
+    {
+        const imported = await importStickerAnimation(result.filePaths[0], customAssetDirectory());
+        const averageDuration = imported.frameDurations.reduce((total, duration) => total + duration, 0)
+            / imported.frameDurations.length;
+        updateSettings({
+            animation: {
+                hoverFrames: imported.framePaths,
+                hoverFrameDurations: imported.frameDurations,
+                hoverFrameMs: Math.max(60, Math.min(500, Math.round(averageDuration))),
+                hoverEnabled: true
+            }
+        });
+        await dialog.showMessageBox(mainWindow, {
+            type: "info",
+            title: "动态表情导入完成",
+            message: `已导入 ${imported.frameCount} 帧 ${String(imported.format).toUpperCase()} 动态表情`,
+            detail: imported.sourceFrameCount > imported.frameCount
+                ? `原始 ${imported.sourceFrameCount} 帧已等时长采样为 ${imported.frameCount} 帧。`
+                : "已保留原始逐帧播放时长，可通过“悬停帧速度”整体调速。",
+            buttons: ["知道了"]
+        });
+    }
+    catch (error)
+    {
+        dialog.showErrorBox("无法导入微信动态表情", error.message);
     }
 }
 function rebuildTrayMenu()
@@ -622,6 +663,7 @@ function rebuildTrayMenu()
                     click: (item) => updateSettings({ animation: { autoExtractMascot: item.checked } })
                 },
                 { label: "更换桌宠主图…", click: chooseMascotImage },
+                { label: "导入微信动态表情…", click: chooseStickerAnimation },
                 { label: "导入悬停动画帧…", click: chooseHoverFrames },
                 {
                     label: "恢复默认主图",
@@ -631,7 +673,7 @@ function rebuildTrayMenu()
                 {
                     label: "清除悬停动画帧",
                     enabled: 0 < settings.animation.hoverFrames.length,
-                    click: () => updateSettings({ animation: { hoverFrames: [] } })
+                    click: () => updateSettings({ animation: { hoverFrames: [], hoverFrameDurations: [] } })
                 }
             ]
         },
