@@ -763,6 +763,13 @@ else
             applyInteractionMode();
             rebuildTrayMenu();
         });
+        ipcMain.on("window-drag", (_event, dx, dy) => {
+            if (mainWindow)
+            {
+                const [x, y] = mainWindow.getPosition();
+                mainWindow.setPosition(x + dx, y + dy);
+            }
+        });
     });
 }
 

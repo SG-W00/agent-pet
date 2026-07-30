@@ -326,6 +326,48 @@ window.agentPet.onPositionAdjustMode((active) => {
 });
 
 mascot.addEventListener("mouseenter", playRandomHoverAnimation);
+
+// 手动窗口拖动：mascot 因 -webkit-app-region: no-drag 不参与原生拖动，
+// 通过 IPC 手动移动窗口，同时保留 mouseenter 悬停动画。
+(function initManualDrag()
+{
+    let isDragging = false;
+    let dragStartX = 0;
+    let dragStartY = 0;
+
+    mascot.addEventListener("mousedown", (event) =>
+    {
+        if (0 !== event.button)
+        {
+            return;
+        }
+        isDragging = true;
+        dragStartX = event.screenX;
+        dragStartY = event.screenY;
+        event.preventDefault();
+    });
+
+    document.addEventListener("mousemove", (event) =>
+    {
+        if (!isDragging)
+        {
+            return;
+        }
+        const dx = event.screenX - dragStartX;
+        const dy = event.screenY - dragStartY;
+        if (dx || dy)
+        {
+            window.agentPet.dragWindow(dx, dy);
+            dragStartX = event.screenX;
+            dragStartY = event.screenY;
+        }
+    });
+
+    document.addEventListener("mouseup", () =>
+    {
+        isDragging = false;
+    });
+})();
 sessionSummary.addEventListener("click", () => setSessionDetails(!sessionDetailsOpen));
 sessionSummary.addEventListener("keydown", (event) => {
     if (["Enter", " "].includes(event.key))
