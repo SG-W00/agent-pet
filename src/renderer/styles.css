@@ -863,7 +863,6 @@ body.is-position-adjusting #speech-bubble {
 /* Custom animation modes */
 #mascot {
     pointer-events: auto;
-    -webkit-app-region: no-drag;
 }
 
 body.animation-style-still #mascot {
