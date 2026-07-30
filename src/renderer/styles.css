@@ -767,6 +767,10 @@ body.is-position-adjusting #speech-bubble {
 }
 
 #session-details-close {
+    position: absolute;
+    z-index: 26;
+    right: 8px;
+    top: 8px;
     width: 28px;
     height: 28px;
     padding: 0;
@@ -777,6 +781,16 @@ body.is-position-adjusting #speech-bubble {
     cursor: pointer;
     font-size: 19px;
     -webkit-app-region: no-drag;
+    transition: opacity 120ms ease;
+    opacity: 0;
+}
+
+#session-details-panel[hidden] + #session-details-close {
+    display: none;
+}
+
+.has-session-details #session-details-close {
+    opacity: 1;
 }
 
 #session-details-list {
